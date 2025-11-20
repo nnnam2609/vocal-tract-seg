@@ -1,3 +1,4 @@
+ 
 ####################################################################################################
 #
 # Train a convolutional neural network to perform border segmentation of vocal tract articulators.
@@ -32,6 +33,7 @@ from loss import SoftJaccardBCEWithLogitsLoss
 from settings import *
 
 ex = Experiment()
+print(f"BASE_DIR : {BASE_DIR}")
 fs_observer = FileStorageObserver.create(os.path.join(BASE_DIR, "results"))
 ex.observers.append(fs_observer)
 
@@ -62,8 +64,10 @@ def run_maskrcnn_epoch(phase, epoch, model, dataloader, optimizer, *args, schedu
 
     if training:
         model.train()
+        print(f"train : {training}")
     else:
         model.eval()
+        print(f"eval")
 
     losses = []
     progress_bar = tqdm(dataloader, desc=f"Epoch {epoch} - {phase}")
@@ -74,30 +78,63 @@ def run_maskrcnn_epoch(phase, epoch, model, dataloader, optimizer, *args, schedu
         } for d in targets_dict]
 
         optimizer.zero_grad()
-        with torch.set_grad_enabled(training):
-            outputs = model(inputs, targets_dict)
-            loss = (
-                outputs["loss_classifier"] + \
-                outputs["loss_box_reg"] + \
-                outputs["loss_mask"] + \
-                outputs["loss_objectness"] + \
-                outputs["loss_rpn_box_reg"]
-            )
+        # with torch.set_grad_enabled(training):
+        #     outputs = model(inputs, targets_dict)
+        #     loss = (
+        #         outputs["loss_classifier"] + \
+        #         outputs["loss_box_reg"] + \
+        #         outputs["loss_mask"] + \
+        #         outputs["loss_objectness"] + \
+        #         outputs["loss_rpn_box_reg"]
+        #     )
 
+        #     if training:
+        #         loss.backward()
+        #         optimizer.step()
+
+        #         if scheduler is not None:
+        #             scheduler.step()
+
+        # losses.append({
+        #     "loss_classifier": outputs["loss_classifier"].item(),
+        #     "loss_box_reg": outputs["loss_box_reg"].item(),
+        #     "loss_mask": outputs["loss_mask"].item(),
+        #     "loss": loss.item()
+        # })
+
+        with torch.set_grad_enabled(training):
             if training:
+                # Entraînement : le modèle retourne les pertes
+                outputs = model(inputs, targets_dict)
+                loss = (
+                    outputs["loss_classifier"] +
+                    outputs["loss_box_reg"] +
+                    outputs["loss_mask"] +
+                    outputs["loss_objectness"] +
+                    outputs["loss_rpn_box_reg"]
+                )
                 loss.backward()
                 optimizer.step()
 
                 if scheduler is not None:
                     scheduler.step()
 
-        losses.append({
-            "loss_classifier": outputs["loss_classifier"].item(),
-            "loss_box_reg": outputs["loss_box_reg"].item(),
-            "loss_mask": outputs["loss_mask"].item(),
-            "loss": loss.item()
-        })
+                losses.append({
+                    "loss_classifier": outputs["loss_classifier"].item(),
+                    "loss_box_reg": outputs["loss_box_reg"].item(),
+                    "loss_mask": outputs["loss_mask"].item(),
+                    "loss": loss.item()
+                })
 
+            else:
+                # Évaluation : pas de calcul de perte par défaut
+                with torch.no_grad():
+                    outputs = model(inputs)  # Pas targets_dict ici
+                # On ne peut pas calculer de loss : mettre une valeur bidon ou sauter
+                losses.append({
+                    "loss": 0.0  # ou None ou np.nan
+                })
+            
         mean_loss = np.mean([l["loss"] for l in losses])
         progress_bar.set_postfix(loss=mean_loss)
 
