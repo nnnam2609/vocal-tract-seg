@@ -1,0 +1,223 @@
+# Configuration for training on ASD1 with subject-level validation
+# From Data statistics: https://github.com/nnnam2609/vocal-tract-seg/blob/feature/data-statistics-analysis/data_statistic_asd.ipynb
+# Train: ASD1 subjects 1612-1659 (9 subjects, ~903 annotated images)
+# Validation: ASD1 subject 1662 (1 subject, ~100 annotated images)
+# Test: ASD2 subject 1775 (427 annotated images from 26 sequences)
+
+model_name: maskrcnn
+scheduler_type: cyclic_lr
+image_folder: NPY_MR
+image_ext: npy
+datadir: /srv/storage/talc@storage4.nancy/multispeech/corpus/speech_production/iadi #/srv/storage/talc3@talc-data.nancy/multispeech/calcul/users/vsouzaribeiro/datasets
+mode: rgb
+batch_size: 8
+n_epochs: 500
+patience: 50
+learning_rate: 0.0001
+weight_decay: 0.001
+size: [136, 136]
+# exclusion_list_filepath: /home/vsouzaribeiro/workspace/vocal-tract-seg/config/leave_one_out/swallowing.json
+train_sequences:
+    "ArtSpeech_Vocal_Tract_Segmentation/1612":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11 
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1617":
+        - S8
+        - S9
+        - S10
+        - S11   
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+        - S23
+    "ArtSpeech_Vocal_Tract_Segmentation/1618":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11   
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1628":
+        - S8
+        - S9
+        - S10
+        - S11   
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+        - S23
+    "ArtSpeech_Vocal_Tract_Segmentation/1635":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S21
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1638":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S21
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1640":
+        - S9
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+        - S23
+        - S24
+    "ArtSpeech_Vocal_Tract_Segmentation/1653":
+        - S9
+        - S10
+        - S11
+        - S13
+        - S14
+        - S15
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+        - S23
+        - S24
+        - S25
+
+    "ArtSpeech_Vocal_Tract_Segmentation/1659":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+
+valid_sequences:
+    "ArtSpeech_Vocal_Tract_Segmentation/1662":
+        - S7
+        - S8
+        - S9
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S17
+        - S18
+        - S19
+        - S21
+        - S22
+test_sequences:
+    "ArtSpeech_Database_2/1775":
+        - S6
+        - S7
+        - S8
+        - S10
+        - S11
+        - S12
+        - S13
+        - S14
+        - S15
+        - S16
+        - S17
+        - S18
+        - S19
+        - S20
+        - S21
+        - S22
+        - S23
+        - S24
+        - S26
+        - S27
+        - S28
+        - S29
+        - S30
+        - S31
+        - S32
+classes:
+    - arytenoid-cartilage
+    - epiglottis
+    - lower-lip
+    - pharynx
+    - soft-palate-midline
+    - thyroid-cartilage
+    - tongue
+    - upper-lip
+    - vocal-folds

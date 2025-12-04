@@ -14,6 +14,7 @@
 *.stdout
 
 !config/thesis_config/*.yaml
+!config/Nam_exp/*.yaml
 
 .ipynb_checkpoints
 __pycache__
