@@ -3,7 +3,6 @@
 *.yaml
 *.csv
 *.pyc
-*.ipynb
 *.out
 *.jpg
 *.json
