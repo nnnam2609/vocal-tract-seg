@@ -20,7 +20,7 @@ from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CyclicLR
 from torch.utils.data import DataLoader
-from torchvision.models.detection.mask_rcnn import maskrcnn_resnet50_fpn
+from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torchvision.models.segmentation import deeplabv3_resnet101
 from torchvision.transforms import Compose, GaussianBlur
 from tqdm import tqdm
@@ -48,7 +48,7 @@ def load_deeplabv3(pretrained, num_classes):
 
 
 def load_maskrcnn(pretrained, *args, **kwargs):
-    return maskrcnn_resnet50_fpn(pretrained=pretrained)
+    return maskrcnn_resnet50_fpn_v2(pretrained=pretrained)
 
  
 model_loaders = {

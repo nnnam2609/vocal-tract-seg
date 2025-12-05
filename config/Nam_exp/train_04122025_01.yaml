@@ -10,7 +10,7 @@ image_folder: NPY_MR
 image_ext: npy
 datadir: /srv/storage/talc@storage4.nancy/multispeech/corpus/speech_production/iadi #/srv/storage/talc3@talc-data.nancy/multispeech/calcul/users/vsouzaribeiro/datasets
 mode: rgb
-batch_size: 8
+batch_size: 12
 n_epochs: 500
 patience: 50
 learning_rate: 0.0001
