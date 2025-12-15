@@ -1,7 +1,7 @@
 # Configuration for training on ASD1 with sequence-level validation
 # Data statistics: https://github.com/nnnam2609/vocal-tract-seg/blob/feature/data-statistics-analysis/data_statistic_asd.ipynb
 # Train: ASD1 all subjects (~903 annotated images, S7 excluded from some subjects)
-# Validation: ASD1 subject 1659 (1 subject, ~100 annotated images)
+# Validation:  (1 subject, ~100 annotated images)
 # Test: ASD2 subject 1775 (427 annotated images from 26 sequences)
 # Note don't use 1662 bc it is s7.1 -the same subject of testing subject 1775
 
