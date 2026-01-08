@@ -1,0 +1,257 @@
+model_name: maskrcnn
+scheduler_type: cyclic_lr
+image_folder: NPY_MR
+image_ext: npy
+datadir: /srv/storage/talc@storage4.nancy/multispeech/corpus/speech_production/iadi
+mode: rgb
+batch_size: 12
+n_epochs: 500
+patience: 50
+learning_rate: 0.0001
+weight_decay: 0.001
+size:
+- 136
+- 136
+train_sequences:
+  ArtSpeech_Vocal_Tract_Segmentation/1612:
+  - S9
+  - S10
+  - S11
+  - S13
+  - S14
+  - S15
+  - S16
+  - S17
+  - S19
+  - S20
+  - S21
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1617:
+  - S9
+  - S10
+  - S11
+  - S13
+  - S15
+  - S16
+  - S17
+  - S19
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1618:
+  - S8
+  - S9
+  - S10
+  - S12
+  - S13
+  - S14
+  - S15
+  - S17
+  - S18
+  - S20
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1628:
+  - S8
+  - S10
+  - S14
+  - S15
+  - S17
+  - S18
+  - S20
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1635:
+  - S7
+  - S12
+  - S13
+  - S14
+  - S15
+  - S17
+  - S18
+  - S20
+  - S21
+  ArtSpeech_Vocal_Tract_Segmentation/1638:
+  - S7
+  - S8
+  - S9
+  - S11
+  - S12
+  - S14
+  - S16
+  - S17
+  - S18
+  - S20
+  - S21
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1640:
+  - S9
+  - S10
+  - S11
+  - S12
+  - S14
+  - S15
+  - S16
+  - S18
+  - S19
+  - S20
+  - S21
+  - S24
+  ArtSpeech_Vocal_Tract_Segmentation/1653:
+  - S9
+  - S11
+  - S13
+  - S14
+  - S16
+  - S17
+  - S18
+  - S20
+  - S22
+  - S23
+  - S24
+  ArtSpeech_Vocal_Tract_Segmentation/1659:
+  - S7
+  - S12
+  - S13
+  - S15
+  - S16
+  - S19
+  - S20
+  - S21
+  ArtSpeech_Vocal_Tract_Segmentation/1662:
+  - S7
+  - S8
+  - S12
+  - S14
+  - S15
+  ArtSpeech_Database_2/1775:
+  - S6
+  - S7
+  - S8
+  - S10
+  - S13
+  - S15
+  - S17
+  - S18
+  - S19
+  - S22
+  - S25
+  - S27
+  - S29
+  - S30
+  - S33
+  - S34
+  - S35
+  - S36
+  - S37
+  - S38
+  - S39
+  - S40
+  - S41
+  - S42
+  - S43
+valid_sequences:
+  ArtSpeech_Vocal_Tract_Segmentation/1612:
+  - S8
+  ArtSpeech_Vocal_Tract_Segmentation/1617:
+  - S12
+  - S20
+  ArtSpeech_Vocal_Tract_Segmentation/1618:
+  - S11
+  ArtSpeech_Vocal_Tract_Segmentation/1628:
+  - S19
+  - S21
+  ArtSpeech_Vocal_Tract_Segmentation/1635:
+  - S10
+  - S16
+  ArtSpeech_Vocal_Tract_Segmentation/1638:
+  - S15
+  ArtSpeech_Vocal_Tract_Segmentation/1640:
+  - S13
+  ArtSpeech_Vocal_Tract_Segmentation/1653:
+  - S15
+  - S25
+  ArtSpeech_Vocal_Tract_Segmentation/1659:
+  - S10
+  - S17
+  ArtSpeech_Vocal_Tract_Segmentation/1662: []
+  ArtSpeech_Database_2/1775:
+  - S11
+  - S16
+  - S20
+  - S32
+test_sequences:
+  ArtSpeech_Vocal_Tract_Segmentation/1612:
+  - S7
+  - S12
+  - S18
+  ArtSpeech_Vocal_Tract_Segmentation/1617:
+  - S8
+  - S14
+  - S18
+  - S21
+  - S23
+  ArtSpeech_Vocal_Tract_Segmentation/1618:
+  - S7
+  - S16
+  - S19
+  - S21
+  ArtSpeech_Vocal_Tract_Segmentation/1628:
+  - S9
+  - S11
+  - S12
+  - S13
+  - S16
+  - S23
+  ArtSpeech_Vocal_Tract_Segmentation/1635:
+  - S8
+  - S9
+  - S11
+  - S19
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1638:
+  - S10
+  - S13
+  - S19
+  ArtSpeech_Vocal_Tract_Segmentation/1640:
+  - S17
+  - S22
+  - S23
+  ArtSpeech_Vocal_Tract_Segmentation/1653:
+  - S10
+  - S19
+  - S21
+  ArtSpeech_Vocal_Tract_Segmentation/1659:
+  - S8
+  - S9
+  - S11
+  - S14
+  - S18
+  - S22
+  ArtSpeech_Vocal_Tract_Segmentation/1662:
+  - S9
+  - S10
+  - S11
+  - S13
+  - S16
+  - S17
+  - S18
+  - S19
+  - S21
+  - S22
+  ArtSpeech_Database_2/1775:
+  - S9
+  - S12
+  - S14
+  - S21
+  - S23
+  - S24
+  - S26
+  - S28
+  - S31
+classes:
+- arytenoid-cartilage
+- epiglottis
+- lower-lip
+- pharynx
+- soft-palate-midline
+- thyroid-cartilage
+- tongue
+- upper-lip
+- vocal-folds
