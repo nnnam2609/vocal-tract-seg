@@ -236,10 +236,28 @@ def main():
     print(f"Output: {output_dir}")
     print(f"Config: {args.config}")
     
-    # Convert training data
+    # Convert training data (combining train + valid sequences for nnU-Net training)
+    # nnU-Net will do its own train/val split during training
+    print("\n" + "="*60)
+    print("Converting TRAINING data (train_sequences + valid_sequences)")
+    print("="*60)
+    
+    # Combine train and valid sequences into training set
+    combined_train_sequences = train_cfg.get("train_sequences", {}).copy()
+    valid_sequences = train_cfg.get("valid_sequences", {})
+    
+    # Merge valid_sequences into combined_train_sequences
+    for key, value in valid_sequences.items():
+        if key in combined_train_sequences:
+            # If key exists, extend the list
+            combined_train_sequences[key].extend(value)
+        else:
+            # If key doesn't exist, add it
+            combined_train_sequences[key] = value
+    
     num_training = convert_to_nnunet(
         datadir=train_cfg["datadir"],
-        subj_sequences=train_cfg["train_sequences"],
+        subj_sequences=combined_train_sequences,
         output_dir=output_dir,
         classes=args.classes,
         image_folder=train_cfg.get("image_folder", "NPY_MR"),
@@ -247,26 +265,39 @@ def main():
         split="Tr"
     )
     
-    # Convert test data if provided
+    # Convert test data from the same config or from separate test config
     num_test = 0
+    test_sequences = None
+    test_datadir = train_cfg["datadir"]
+    
+    # First, check if test_config is provided
     if args.test_config:
         with open(args.test_config) as f:
             test_cfg = yaml.safe_load(f)
-        
-        # Use test_sequences if available, otherwise use valid_sequences
         test_sequences = test_cfg.get("test_sequences", test_cfg.get("valid_sequences", {}))
-        
+        test_datadir = test_cfg["datadir"]
+        print("\n" + "="*60)
+        print(f"Converting TEST data from separate config: {args.test_config}")
+        print("="*60)
+    else:
+        # Use test_sequences from the main config
+        test_sequences = train_cfg.get("test_sequences", {})
         if test_sequences:
-            num_test = convert_to_nnunet(
-                datadir=test_cfg["datadir"],
-                subj_sequences=test_sequences,
-                output_dir=output_dir,
-                classes=args.classes,
-                image_folder=test_cfg.get("image_folder", "NPY_MR"),
-                image_ext=test_cfg.get("image_ext", "npy"),
-                split="Ts",
-                case_id_offset=num_training
-            )
+            print("\n" + "="*60)
+            print("Converting TEST data (test_sequences from main config)")
+            print("="*60)
+    
+    if test_sequences:
+        num_test = convert_to_nnunet(
+            datadir=test_datadir,
+            subj_sequences=test_sequences,
+            output_dir=output_dir,
+            classes=args.classes,
+            image_folder=train_cfg.get("image_folder", "NPY_MR"),
+            image_ext=train_cfg.get("image_ext", "npy"),
+            split="Ts",
+            case_id_offset=num_training
+        )
     
     # Create dataset.json
     create_dataset_json(output_dir, args.classes, num_training, num_test)
@@ -274,9 +305,11 @@ def main():
     print(f"\n{'='*60}")
     print(f"Conversion Complete!")
     print(f"{'='*60}")
-    print(f"Training cases: {num_training}")
+    print(f"Training cases: {num_training} (train_sequences + valid_sequences)")
     if num_test > 0:
-        print(f"Test cases: {num_test}")
+        print(f"Test cases: {num_test} (test_sequences)")
+    print(f"\nNote: nnU-Net will automatically split the training data into")
+    print(f"      train/validation during training using cross-validation.")
     print(f"\nNext steps:")
     print(f"1. Set environment variables:")
     print(f"   export nnUNet_raw={args.output}")
