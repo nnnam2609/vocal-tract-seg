@@ -13,6 +13,7 @@ import yaml
 import argparse
 import numpy as np
 import nibabel as nib
+import pandas as pd
 from glob import glob
 from PIL import Image
 from tqdm import tqdm
@@ -57,7 +58,7 @@ def convert_to_nnunet(
         case_id_offset: Starting case ID number
         
     Returns:
-        Number of cases processed
+        tuple: (number of cases processed, case mapping list)
     """
     images_dir = os.path.join(output_dir, f"images{split}")
     labels_dir = os.path.join(output_dir, f"labels{split}")
@@ -66,6 +67,7 @@ def convert_to_nnunet(
     
     sequences = sequences_from_dict(datadir, subj_sequences)
     case_id = case_id_offset
+    case_mapping = []  # Store mapping info
     
     print(f"\nConverting {len(sequences)} sequences to nnU-Net format...")
     print(f"Split: {split}, Output: {output_dir}")
@@ -89,6 +91,12 @@ def convert_to_nnunet(
             )
             if not all_masks_exist:
                 continue
+            
+            # Extract frame number from image name (e.g., "0897" -> 897)
+            try:
+                frame = int(image_name.lstrip('0') or '0')
+            except ValueError:
+                frame = image_name  # Keep as string if not a number
             
             # Load image
             if image_ext == "npy":
@@ -136,11 +144,24 @@ def convert_to_nnunet(
             label_nifti = nib.Nifti1Image(mask_for_save.astype(np.uint8), affine=np.eye(4))
             nib.save(label_nifti, os.path.join(labels_dir, f"{case_name}.nii.gz"))
             
+            # Extract subject number (remove prefix like "ArtSpeech_Vocal_Tract_Segmentation/")
+            subject_num = subject.split('/')[-1] if '/' in subject else subject
+            
+            # Store mapping information
+            case_mapping.append({
+                'case_name': f"{case_name}_0000",
+                'case_id': case_id,
+                'subject': subject_num,
+                'sequence': sequence,
+                'frame': frame,
+                'original_path': image_filepath
+            })
+            
             case_id += 1
     
     num_cases = case_id - case_id_offset
     print(f"Converted {num_cases} cases for {split} split")
-    return num_cases
+    return num_cases, case_mapping
 
 
 def create_dataset_json(output_dir: str, classes: list, num_training: int, num_test: int = 0):
@@ -185,6 +206,48 @@ def create_dataset_json(output_dir: str, classes: list, num_training: int, num_t
     print(f"\nCreated dataset.json with {num_training} training cases")
     print(f"Classes: {classes}")
     print(f"Saved to: {json_path}")
+
+
+def save_case_mapping(case_mapping: list, output_dir: str, dataset_id: int, split: str = ""):
+    """
+    Save case mapping to CSV file.
+    
+    Args:
+        case_mapping: List of dictionaries with case mapping info
+        output_dir: Output directory (Dataset00X_Name folder)
+        dataset_id: Dataset ID number
+        split: Split name ("train", "test", or "" for combined)
+    """
+    if not case_mapping:
+        print("Warning: No case mapping to save")
+        return
+    
+    df = pd.DataFrame(case_mapping)
+    
+    # Generate filename
+    if split:
+        csv_filename = f"case_mapping_Dataset{dataset_id:03d}_{split}.csv"
+    else:
+        csv_filename = f"case_mapping_Dataset{dataset_id:03d}.csv"
+    
+    csv_path = os.path.join(output_dir, csv_filename)
+    df.to_csv(csv_path, index=False)
+    
+    print(f"\nSaved case mapping to: {csv_path}")
+    print(f"Mapping contains {len(case_mapping)} cases")
+    print(f"Columns: {list(df.columns)}")
+    
+    # Show summary statistics
+    print(f"\nCase Mapping Summary:")
+    print(f"  Subjects: {sorted(df['subject'].unique())}")
+    print(f"  Total frames: {len(df)}")
+    print(f"  Frames per subject:")
+    for subject in sorted(df['subject'].unique()):
+        count = len(df[df['subject'] == subject])
+        print(f"    Subject {subject}: {count} frames")
+    
+    print(f"\nFirst few entries:")
+    print(df.head(10).to_string())
 
 
 def main():
@@ -255,7 +318,7 @@ def main():
             # If key doesn't exist, add it
             combined_train_sequences[key] = value
     
-    num_training = convert_to_nnunet(
+    num_training, train_mapping = convert_to_nnunet(
         datadir=train_cfg["datadir"],
         subj_sequences=combined_train_sequences,
         output_dir=output_dir,
@@ -265,8 +328,13 @@ def main():
         split="Tr"
     )
     
+    # Save training mapping
+    if train_mapping:
+        save_case_mapping(train_mapping, output_dir, args.dataset_id, split="train")
+    
     # Convert test data from the same config or from separate test config
     num_test = 0
+    test_mapping = []
     test_sequences = None
     test_datadir = train_cfg["datadir"]
     
@@ -288,7 +356,7 @@ def main():
             print("="*60)
     
     if test_sequences:
-        num_test = convert_to_nnunet(
+        num_test, test_mapping = convert_to_nnunet(
             datadir=test_datadir,
             subj_sequences=test_sequences,
             output_dir=output_dir,
@@ -298,6 +366,10 @@ def main():
             split="Ts",
             case_id_offset=num_training
         )
+        
+        # Save test mapping
+        if test_mapping:
+            save_case_mapping(test_mapping, output_dir, args.dataset_id, split="test")
     
     # Create dataset.json
     create_dataset_json(output_dir, args.classes, num_training, num_test)
@@ -308,6 +380,10 @@ def main():
     print(f"Training cases: {num_training} (train_sequences + valid_sequences)")
     if num_test > 0:
         print(f"Test cases: {num_test} (test_sequences)")
+    print(f"\nCase mapping CSV files created:")
+    print(f"  - Training: case_mapping_Dataset{args.dataset_id:03d}_train.csv")
+    if num_test > 0:
+        print(f"  - Test: case_mapping_Dataset{args.dataset_id:03d}_test.csv")
     print(f"\nNote: nnU-Net will automatically split the training data into")
     print(f"      train/validation during training using cross-validation.")
     print(f"\nNext steps:")
