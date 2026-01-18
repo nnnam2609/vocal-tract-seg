@@ -13,8 +13,12 @@
 *.txt
 *.stderr
 *.stdout
+*.tex
 
+logs/*
 !config/thesis_config/*.yaml
+!config/Nam_exp_01082026/*.yaml
+config/Nam_exp_01082026/*.md
 command/*
 .ipynb_checkpoints
 __pycache__
@@ -22,3 +26,4 @@ results*
 runs*
 data
 mlruns/*
+command/*
