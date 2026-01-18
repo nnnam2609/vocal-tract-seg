@@ -13,8 +13,11 @@
 *.txt
 *.stderr
 *.stdout
+*.tex
 
+logs/*
 !config/thesis_config/*.yaml
+!config/Nam_exp_01082026/*.yaml
 command/*
 .ipynb_checkpoints
 __pycache__
