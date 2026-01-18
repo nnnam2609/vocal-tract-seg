@@ -307,6 +307,231 @@ class ComparisonEngine:
             results['sequences'] = sorted(df['sequence'].unique())
         
         return results
+    
+    def generate_per_sequence_stats(self, subject_id: int, metric: str = 'p2cp_rms') -> Dict:
+        """
+        Generate per-sequence statistics table for a single subject
+        Like the image: rows=articulators, columns=sequences + mean + p-value
+        
+        Parameters:
+        -----------
+        subject_id : int
+            Subject ID to analyze
+        metric : str
+            Metric to use ('p2cp_rms', 'p2cp_mean', or 'jaccard_index')
+        
+        Returns:
+        --------
+        Dict containing per-sequence statistics for each articulator
+        """
+        df = self.data.get_data_by_subject(subject_id)
+        
+        if len(df) == 0:
+            print(f"Error: No data found for subject {subject_id}")
+            return None
+        
+        sequences = sorted(df['sequence'].unique())
+        articulators = sorted(df['pred_class'].unique())
+        
+        results = {
+            'subject': subject_id,
+            'sequences': sequences,
+            'metric': metric,
+            'articulators': {}
+        }
+        
+        # For each articulator, get stats per sequence
+        all_articulator_means = []  # For ANOVA across sequences
+        
+        for articulator in articulators:
+            art_df = df[df['pred_class'] == articulator]
+            
+            art_data = {
+                'sequences': {},
+                'overall_mean': None,
+                'overall_std': None,
+                'pvalue': None
+            }
+            
+            seq_values = []  # For ANOVA
+            
+            for seq in sequences:
+                seq_df = art_df[art_df['sequence'] == seq]
+                values = seq_df[metric].dropna()
+                
+                if len(values) > 0:
+                    art_data['sequences'][seq] = {
+                        'mean': values.mean(),
+                        'std': values.std(),
+                        'count': len(values)
+                    }
+                    seq_values.append(values.values)
+            
+            # Overall statistics for this articulator
+            all_values = art_df[metric].dropna()
+            if len(all_values) > 0:
+                art_data['overall_mean'] = all_values.mean()
+                art_data['overall_std'] = all_values.std()
+                all_articulator_means.append(all_values.values)
+            
+            # One-way ANOVA to test if sequences are significantly different
+            if len(seq_values) > 1:
+                try:
+                    f_stat, pval = stats.f_oneway(*seq_values)
+                    art_data['pvalue'] = pval
+                except:
+                    art_data['pvalue'] = None
+            
+            results['articulators'][articulator] = art_data
+        
+        # Overall statistics across all articulators
+        all_seq_means = {seq: [] for seq in sequences}
+        for articulator in articulators:
+            art_df = df[df['pred_class'] == articulator]
+            for seq in sequences:
+                seq_df = art_df[art_df['sequence'] == seq]
+                values = seq_df[metric].dropna()
+                if len(values) > 0:
+                    all_seq_means[seq].append(values.mean())
+        
+        results['overall'] = {
+            'sequences': {},
+            'overall_mean': None,
+            'overall_std': None,
+            'pvalue': None
+        }
+        
+        for seq in sequences:
+            if len(all_seq_means[seq]) > 0:
+                results['overall']['sequences'][seq] = {
+                    'mean': np.mean(all_seq_means[seq]),
+                    'std': np.std(all_seq_means[seq])
+                }
+        
+        # Overall across all data
+        all_values = df[metric].dropna()
+        if len(all_values) > 0:
+            results['overall']['overall_mean'] = all_values.mean()
+            results['overall']['overall_std'] = all_values.std()
+        
+        # ANOVA for overall (across sequences)
+        seq_vals_overall = [df[df['sequence'] == seq][metric].dropna().values 
+                           for seq in sequences]
+        seq_vals_overall = [v for v in seq_vals_overall if len(v) > 0]
+        if len(seq_vals_overall) > 1:
+            try:
+                f_stat, pval = stats.f_oneway(*seq_vals_overall)
+                results['overall']['pvalue'] = pval
+            except:
+                results['overall']['pvalue'] = None
+        
+        return results
+    
+    def generate_all_subjects_stats(self, metric: str = 'p2cp_rms') -> Dict:
+        """
+        Generate cross-subject statistics table
+        Rows=articulators, Columns=subjects (S1, S2, ...) + mean + p-value
+        
+        Parameters:
+        -----------
+        metric : str
+            Metric to use ('p2cp_rms', 'p2cp_mean', or 'jaccard_index')
+        
+        Returns:
+        --------
+        Dict containing per-subject statistics for each articulator
+        """
+        subjects = sorted(self.data.subjects)
+        articulators = sorted(self.data.articulators)
+        
+        results = {
+            'subjects': subjects,
+            'metric': metric,
+            'articulators': {}
+        }
+        
+        # For each articulator, get stats per subject
+        for articulator in articulators:
+            art_data = {
+                'subjects': {},
+                'overall_mean': None,
+                'overall_std': None,
+                'pvalue': None
+            }
+            
+            subj_values = []  # For ANOVA
+            
+            for subject_id in subjects:
+                subj_df = self.data.df[(self.data.df['subject'] == subject_id) & 
+                                       (self.data.df['pred_class'] == articulator)]
+                values = subj_df[metric].dropna()
+                
+                if len(values) > 0:
+                    art_data['subjects'][subject_id] = {
+                        'mean': values.mean(),
+                        'std': values.std(),
+                        'count': len(values)
+                    }
+                    subj_values.append(values.values)
+            
+            # Overall statistics for this articulator
+            all_values = self.data.df[self.data.df['pred_class'] == articulator][metric].dropna()
+            if len(all_values) > 0:
+                art_data['overall_mean'] = all_values.mean()
+                art_data['overall_std'] = all_values.std()
+            
+            # One-way ANOVA to test if subjects are significantly different
+            if len(subj_values) > 1:
+                try:
+                    f_stat, pval = stats.f_oneway(*subj_values)
+                    art_data['pvalue'] = pval
+                except:
+                    art_data['pvalue'] = None
+            
+            results['articulators'][articulator] = art_data
+        
+        # Overall statistics across all articulators
+        all_subj_means = {subj: [] for subj in subjects}
+        for articulator in articulators:
+            for subject_id in subjects:
+                subj_df = self.data.df[(self.data.df['subject'] == subject_id) & 
+                                       (self.data.df['pred_class'] == articulator)]
+                values = subj_df[metric].dropna()
+                if len(values) > 0:
+                    all_subj_means[subject_id].append(values.mean())
+        
+        results['overall'] = {
+            'subjects': {},
+            'overall_mean': None,
+            'overall_std': None,
+            'pvalue': None
+        }
+        
+        for subject_id in subjects:
+            if len(all_subj_means[subject_id]) > 0:
+                results['overall']['subjects'][subject_id] = {
+                    'mean': np.mean(all_subj_means[subject_id]),
+                    'std': np.std(all_subj_means[subject_id])
+                }
+        
+        # Overall across all data
+        all_values = self.data.df[metric].dropna()
+        if len(all_values) > 0:
+            results['overall']['overall_mean'] = all_values.mean()
+            results['overall']['overall_std'] = all_values.std()
+        
+        # ANOVA for overall (across subjects)
+        subj_vals_overall = [self.data.df[self.data.df['subject'] == subj][metric].dropna().values 
+                            for subj in subjects]
+        subj_vals_overall = [v for v in subj_vals_overall if len(v) > 0]
+        if len(subj_vals_overall) > 1:
+            try:
+                f_stat, pval = stats.f_oneway(*subj_vals_overall)
+                results['overall']['pvalue'] = pval
+            except:
+                results['overall']['pvalue'] = None
+        
+        return results
 
 
 class TableFormatter:
@@ -594,6 +819,238 @@ class TableFormatter:
         print(f"{'='*100}\n")
     
     @staticmethod
+    def print_all_subjects_latex_table(results: Dict):
+        """Print LaTeX format table showing all subjects as columns (like the image)"""
+        subjects = results['subjects']
+        metric = results['metric']
+        
+        # Metric name for display
+        metric_display = {
+            'p2cp_rms': 'P2CP$_{RMS}$ (mm)',
+            'p2cp_mean': 'P2CP$_{Mean}$ (mm)',
+            'jaccard_index': 'Jaccard Index'
+        }.get(metric, metric)
+        
+        num_subjects = len(subjects)
+        
+        print("\\begin{table}[ht]")
+        print("\\centering")
+        print()
+        print("% Optional: slightly tighter spacing (keeps readability)")
+        print("\\setlength{\\tabcolsep}{4pt}        % default is 6pt")
+        print("\\renewcommand{\\arraystretch}{1.15} % row height")
+        print()
+        print("\\footnotesize % good balance between compact and readable")
+        print()
+        print("\\begin{adjustbox}{max width=\\textwidth}")
+        
+        # Dynamic column specification: l for articulator + c for each subject + c for mean + c for p-value
+        col_spec = "l" + "c" * num_subjects + "cc"
+        print(f"\\begin{{tabular}}{{{col_spec}}}")
+        print("\\toprule")
+        
+        # Header row with S1, S2, S3, etc.
+        header = "Articulator"
+        for i in range(num_subjects):
+            header += f" & S{i+1}"
+        header += " & mean $\\pm$ std & $p$-value \\\\"
+        print(header)
+        print("\\midrule")
+        
+        # Data rows - per articulator
+        articulators = sorted(results['articulators'].keys())
+        for articulator in articulators:
+            art_data = results['articulators'][articulator]
+            
+            # Format articulator name with proper line breaks for long names
+            art_name = articulator.replace('-', ' ').title()
+            
+            # Use makecell for multi-line articulator names
+            if 'Cartilage' in art_name:
+                if 'Arytenoid' in art_name:
+                    art_name = "\\makecell[l]{Arytenoid\\\\Cartilage}"
+                elif 'Thyroid' in art_name:
+                    art_name = "\\makecell[l]{Thyroid\\\\Cartilage}"
+            elif 'Midline' in art_name or 'Soft Palate' in art_name:
+                art_name = "\\makecell[l]{Soft Palate\\\\Center Line}"
+            
+            row = art_name
+            
+            # Per-subject values
+            for subject_id in subjects:
+                if subject_id in art_data['subjects']:
+                    subj_data = art_data['subjects'][subject_id]
+                    row += f" & ${subj_data['mean']:.2f} \\pm {subj_data['std']:.2f}$"
+                else:
+                    row += " & -"
+            
+            # Overall mean ± std (bold)
+            if art_data['overall_mean'] is not None:
+                row += f" & $\\mathbf{{{art_data['overall_mean']:.2f}}} \\pm \\mathbf{{{art_data['overall_std']:.2f}}}$"
+            else:
+                row += " & -"
+            
+            # P-value
+            if art_data['pvalue'] is not None:
+                if art_data['pvalue'] < 0.001:
+                    # Scientific notation
+                    exponent = int(np.floor(np.log10(art_data['pvalue'])))
+                    mantissa = art_data['pvalue'] / (10 ** exponent)
+                    if abs(mantissa - round(mantissa, 2)) < 0.01:
+                        mantissa = round(mantissa, 2)
+                    row += f" & ${mantissa:.2f} \\times 10^{{{exponent}}}$"
+                else:
+                    row += f" & ${art_data['pvalue']:.2f}$"
+            else:
+                row += " & -"
+            
+            row += " \\\\"
+            print(row)
+            print()  # Blank line between rows for readability
+        
+        # Overall row (mean ± std across all articulators per subject)
+        print("\\midrule")
+        overall = results['overall']
+        row = "mean $\\pm$ std"
+        
+        for subject_id in subjects:
+            if subject_id in overall['subjects']:
+                subj_data = overall['subjects'][subject_id]
+                row += f" & $\\mathbf{{{subj_data['mean']:.2f}}} \\pm \\mathbf{{{subj_data['std']:.2f}}}$"
+            else:
+                row += " & -"
+        
+        # Skip overall mean±std for overall row (empty cell)
+        row += " & "
+        
+        # Overall p-value (ANOVA across subjects)
+        if overall['pvalue'] is not None:
+            row += f" & ${overall['pvalue']:.4f}$"
+        else:
+            row += " & -"
+        
+        row += " \\\\"
+        print(row)
+        
+        print("\\bottomrule")
+        print("\\end{tabular}")
+        print("\\end{adjustbox}")
+        print()
+        print(f"\\caption{{{metric_display} statistics across all subjects}}")
+        print(f"\\label{{tab:all_subjects_{metric}}}")
+        print("\\end{table}")
+    
+    @staticmethod
+    def print_per_sequence_latex_table(results: Dict):
+        """Print LaTeX format table showing per-sequence breakdown (like the image)"""
+        subject = results['subject']
+        sequences = results['sequences']
+        metric = results['metric']
+        
+        # Metric name for display
+        metric_display = {
+            'p2cp_rms': 'P2CP$_{RMS}$ (mm)',
+            'p2cp_mean': 'P2CP$_{Mean}$ (mm)',
+            'jaccard_index': 'Jaccard Index'
+        }.get(metric, metric)
+        
+        num_cols = len(sequences) + 2  # sequences + mean±std + p-value
+        
+        print("\\begin{table}[h]")
+        print("\\centering")
+        
+        # Dynamic column specification
+        col_spec = "l" + "c" * len(sequences) + "cc"
+        print(f"\\begin{{tabular}}{{{col_spec}}}")
+        print("\\hline")
+        
+        # Header row
+        header = "Articulator"
+        for seq in sequences:
+            header += f" & {seq}"
+        header += " & mean $\\pm$ std & $p$-value \\\\"
+        print(header)
+        print("\\hline")
+        
+        # Data rows - per articulator
+        articulators = sorted(results['articulators'].keys())
+        for articulator in articulators:
+            art_data = results['articulators'][articulator]
+            
+            # Format articulator name
+            art_name = articulator.replace('-', ' ').title()
+            if 'Cartilage' in art_name:
+                art_name = art_name.replace('Arytenoid Cartilage', 'Arytenoid\\newline Cartilage')
+                art_name = art_name.replace('Thyroid Cartilage', 'Thyroid\\newline Cartilage')
+            if 'Midline' in art_name:
+                art_name = art_name.replace('Soft Palate Midline', 'Soft Palate\\newline Center Line')
+            if 'Folds' in art_name:
+                art_name = art_name.replace('Vocal Folds', 'Vocal Folds')
+            
+            row = art_name
+            
+            # Per-sequence values
+            for seq in sequences:
+                if seq in art_data['sequences']:
+                    seq_data = art_data['sequences'][seq]
+                    row += f" & ${seq_data['mean']:.2f} \\pm {seq_data['std']:.2f}$"
+                else:
+                    row += " & -"
+            
+            # Overall mean ± std
+            if art_data['overall_mean'] is not None:
+                row += f" & $\\mathbf{{{art_data['overall_mean']:.2f}}} \\pm \\mathbf{{{art_data['overall_std']:.2f}}}$"
+            else:
+                row += " & -"
+            
+            # P-value
+            if art_data['pvalue'] is not None:
+                if art_data['pvalue'] < 0.001:
+                    row += f" & ${art_data['pvalue']:.2f} \\times 10^{{-{int(-np.log10(art_data['pvalue']))}}}$"
+                elif art_data['pvalue'] < 0.05:
+                    row += f" & ${art_data['pvalue']:.4f}$"
+                else:
+                    row += f" & ${art_data['pvalue']:.2f}$"
+            else:
+                row += " & -"
+            
+            row += " \\\\"
+            print(row)
+        
+        # Overall row
+        print("\\hline")
+        overall = results['overall']
+        row = "mean $\\pm$ std"
+        
+        for seq in sequences:
+            if seq in overall['sequences']:
+                seq_data = overall['sequences'][seq]
+                row += f" & $\\mathbf{{{seq_data['mean']:.2f}}} \\pm \\mathbf{{{seq_data['std']:.2f}}}$"
+            else:
+                row += " & -"
+        
+        # Skip overall mean±std for overall row (redundant)
+        row += " & "
+        
+        # Overall p-value
+        if overall['pvalue'] is not None:
+            if overall['pvalue'] < 0.001:
+                row += f" & ${overall['pvalue']:.4f}$"
+            else:
+                row += f" & ${overall['pvalue']:.4f}$"
+        else:
+            row += " & -"
+        
+        row += " \\\\"
+        print(row)
+        
+        print("\\hline")
+        print("\\end{tabular}")
+        print(f"\\caption{{{metric_display} statistics for Subject {subject} across sequences}}")
+        print(f"\\label{{tab:subject{subject}_sequences}}")
+        print("\\end{table}")
+    
+    @staticmethod
     def print_single_latex_table(results: Dict):
         """Print LaTeX format table for single subject/sequence"""
         label = results['label']
@@ -739,6 +1196,16 @@ Examples:
                         help='First subject/sequence to compare')
     parser.add_argument('--subject2', '-s2', '--item2',
                         help='Second subject/sequence to compare')
+    parser.add_argument('--per-sequence', '--breakdown',
+                        type=int, metavar='SUBJECT_ID',
+                        help='Generate per-sequence breakdown table for a subject')
+    parser.add_argument('--all-subjects', '--cross-subject',
+                        action='store_true',
+                        help='Generate cross-subject comparison table (subjects as columns)')
+    parser.add_argument('--metric', '-m',
+                        choices=['p2cp_rms', 'p2cp_mean', 'jaccard_index'],
+                        default='p2cp_rms',
+                        help='Metric to use for per-sequence or all-subjects table (default: p2cp_rms)')
     parser.add_argument('--format', '-f',
                         choices=['text', 'latex', 'markdown'],
                         default='text',
@@ -748,7 +1215,8 @@ Examples:
     
     args = parser.parse_args()
     
-    # Redirect output if specified
+    # Redirect output if specified, but save original stdout
+    original_stdout = sys.stdout
     if args.output:
         sys.stdout = open(args.output, 'w')
     
@@ -757,6 +1225,36 @@ Examples:
         data_loader = ResultsDataLoader(args.csv_path)
         engine = ComparisonEngine(data_loader)
         formatter = TableFormatter()
+        
+        # CASE 0A: All subjects comparison (cross-subject table)
+        if args.all_subjects:
+            results = engine.generate_all_subjects_stats(metric=args.metric)
+            if results:
+                if args.format == 'latex':
+                    formatter.print_all_subjects_latex_table(results)
+                elif args.format == 'markdown':
+                    print("Markdown format not yet implemented for all-subjects tables")
+                else:
+                    print("Text format not yet implemented for all-subjects tables")
+            return
+        
+        # CASE 0B: Per-sequence breakdown requested
+        if args.per_sequence is not None:
+            subject_id = args.per_sequence
+            if subject_id not in data_loader.subjects:
+                print(f"Error: Subject {subject_id} not found in dataset")
+                print(f"Available subjects: {data_loader.subjects}")
+                sys.exit(1)
+            
+            results = engine.generate_per_sequence_stats(subject_id, metric=args.metric)
+            if results:
+                if args.format == 'latex':
+                    formatter.print_per_sequence_latex_table(results)
+                elif args.format == 'markdown':
+                    print(f"Markdown format not yet implemented for per-sequence tables")
+                else:
+                    print(f"Text format not yet implemented for per-sequence tables")
+            return
         
         # CASE 1: Single subject dataset - auto-generate stats
         if len(data_loader.subjects) == 1 and not args.compare:
@@ -820,7 +1318,7 @@ Examples:
     finally:
         if args.output:
             sys.stdout.close()
-            print(f"\n✅ Report saved to: {args.output}", file=sys.__stdout__)
+            print(f"\n✅ Report saved to: {args.output}", file=original_stdout)
 
 
 if __name__ == '__main__':
