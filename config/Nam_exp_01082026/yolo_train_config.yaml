@@ -1,0 +1,141 @@
+# Ultralytics YOLO 🚀 Configuration for Vocal Tract MRI Segmentation
+# Strongest model + long training
+# Intended for sagittal vocal tract MRI articulator segmentation
+
+# Task and Mode
+task: segment
+mode: train
+
+# Train settings ---------------------------------------------------------------
+model: yolo11x-seg.pt          # YOLO11 nano segmentation model (good for testing; use yolo11m/l/x for best results)
+data: ./data_yolo/data.yaml    # path to your dataset yaml
+epochs: 1000                   # requested
+time:                          # optional max training hours (leave empty)
+patience: 50                   # requested
+batch: -1                      # AutoBatch = biggest safe batch for your GPU
+imgsz: 640                     # recommended for small MRI structures
+save: True
+save_period: 25                # checkpoint every 25 epochs (avoid too many files)
+cache: ram                     # faster if you have RAM; set to False if not
+device: 0
+workers: 8
+project: runs/segment
+name: vocal_tract_yolo26x_1000ep
+exist_ok: True
+pretrained: True
+optimizer: AdamW
+verbose: True
+seed: 0
+deterministic: True
+single_cls: False
+rect: False
+cos_lr: True
+close_mosaic: 0               
+resume: False
+amp: True
+fraction: 1.0
+profile: False
+freeze:                       # leave empty unless you want to freeze layers
+multi_scale: False
+compile: False
+
+# Segmentation settings --------------------------------------------------------
+overlap_mask: False            # important for adjacent anatomy classes
+mask_ratio: 2                  # higher-resolution masks (better boundaries)
+
+# Val/Test settings ------------------------------------------------------------
+val: True
+split: val
+save_json: False
+conf: 0.001
+iou: 0.65
+max_det: 300
+half: False
+dnn: False
+plots: True
+
+# Predict settings -------------------------------------------------------------
+source:
+vid_stride: 1
+stream_buffer: False
+visualize: False
+augment: False
+agnostic_nms: False
+classes:
+retina_masks: True             # higher-quality mask output at inference
+embed:
+
+# Visualize settings -----------------------------------------------------------
+show: False
+save_frames: False
+save_txt: False
+save_conf: False
+save_crop: False
+show_labels: True
+show_conf: True
+show_boxes: True
+line_width:
+
+# Export settings --------------------------------------------------------------
+format: torchscript
+keras: False
+optimize: False
+int8: False
+dynamic: False
+simplify: True
+opset:
+workspace:
+nms: False
+
+# Hyperparameters --------------------------------------------------------------
+# AdamW good defaults for segmentation + long training
+lr0: 0.001                     # stable for AdamW (do NOT use 0.01)
+lrf: 0.01
+momentum: 0.9                  # used mainly for SGD; harmless here
+weight_decay: 0.001            # helps reduce overfitting in medical datasets
+warmup_epochs: 5.0
+warmup_momentum: 0.8
+warmup_bias_lr: 0.1
+
+# Loss gains
+box: 7.5
+cls: 0.5
+dfl: 1.5
+pose: 12.0
+kobj: 1.0
+label_smoothing: 0.0
+nbs: 64                        # nominal batch size for lr scaling
+
+# Augmentations (MRI-safe) -----------------------------------------------------
+# Avoid color/HSV augmentation for MRI (grayscale anatomy)
+hsv_h: 0.0
+hsv_s: 0.0
+hsv_v: 0.0
+
+# Keep geometry augmentation small (anatomy realism)
+degrees: 3.0
+translate: 0.02
+scale: 0.15
+shear: 0.0
+perspective: 0.0
+
+# Flips: avoid left-right flip for sagittal vocal tract MRI
+flipud: 0.0
+fliplr: 0.0
+
+# Turn off mosaic/mixup/copy-paste (bad for anatomical coherence)
+mosaic: 0.0
+mixup: 0.0
+copy_paste: 0.0
+copy_paste_mode: flip
+
+# Auto-augment not recommended for medical segmentation
+auto_augment: None
+erasing: 0.0
+crop_fraction: 1.0
+
+# Custom config.yaml -----------------------------------------------------------
+cfg:
+
+# Tracker settings -------------------------------------------------------------
+tracker: botsort.yaml
