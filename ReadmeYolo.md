@@ -191,7 +191,8 @@ Edit `config/Nam_exp_01082026/yolo_seg_train.yaml` to customize:
 
 - `convert_to_yolo.py` - Main conversion script (direct ROI to YOLO)
 - `visualize_yolo_annotations.py` - Visualization tool
-- `count_dataset_by_subject.py` - Dataset statistics analyzer
+- `count_dataset_by_subject.py` - Dataset statistics by subject analyzer
+- `count_dataset_total.py` - Total dataset statistics analyzer
 - `compare_dataset_stats.py` - Expected vs actual comparison(backup)
 
 ## Example Output Structure

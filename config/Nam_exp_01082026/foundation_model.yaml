@@ -24,31 +24,12 @@ train_sequences:
         - S20
         - S21
         - S22
-    "ArtSpeech_Vocal_Tract_Segmentation/1617":
-        - S9
-        - S10
-        - S11
-        - S13
-        - S15
-        - S16
-        - S17
-        - S19
-        - S22
     "ArtSpeech_Vocal_Tract_Segmentation/1618":
         - S8
         - S9
         - S10
         - S12
         - S13
-        - S14
-        - S15
-        - S17
-        - S18
-        - S20
-        - S22
-    "ArtSpeech_Vocal_Tract_Segmentation/1628":
-        - S8
-        - S10
         - S14
         - S15
         - S17
@@ -90,18 +71,6 @@ train_sequences:
         - S19
         - S20
         - S21
-        - S24
-    "ArtSpeech_Vocal_Tract_Segmentation/1653":
-        - S9
-        - S11
-        - S13
-        - S14
-        - S16
-        - S17
-        - S18
-        - S20
-        - S22
-        - S23
         - S24
     "ArtSpeech_Vocal_Tract_Segmentation/1659":
         - S7
@@ -147,14 +116,8 @@ train_sequences:
 valid_sequences:
     "ArtSpeech_Vocal_Tract_Segmentation/1612":
         - S8
-    "ArtSpeech_Vocal_Tract_Segmentation/1617":
-        - S12
-        - S20
     "ArtSpeech_Vocal_Tract_Segmentation/1618":
         - S11
-    "ArtSpeech_Vocal_Tract_Segmentation/1628":
-        - S19
-        - S21
     "ArtSpeech_Vocal_Tract_Segmentation/1635":
         - S10
         - S16
@@ -162,9 +125,6 @@ valid_sequences:
         - S15
     "ArtSpeech_Vocal_Tract_Segmentation/1640":
         - S13
-    "ArtSpeech_Vocal_Tract_Segmentation/1653":
-        - S15
-        - S25
     "ArtSpeech_Vocal_Tract_Segmentation/1659":
         - S10
         - S17
@@ -179,24 +139,11 @@ test_sequences:
         - S7
         - S12
         - S18
-    "ArtSpeech_Vocal_Tract_Segmentation/1617":
-        - S8
-        - S14
-        - S18
-        - S21
-        - S23
     "ArtSpeech_Vocal_Tract_Segmentation/1618":
         - S7
         - S16
         - S19
         - S21
-    "ArtSpeech_Vocal_Tract_Segmentation/1628":
-        - S9
-        - S11
-        - S12
-        - S13
-        - S16
-        - S23
     "ArtSpeech_Vocal_Tract_Segmentation/1635":
         - S8
         - S9
@@ -211,10 +158,6 @@ test_sequences:
         - S17
         - S22
         - S23
-    "ArtSpeech_Vocal_Tract_Segmentation/1653":
-        - S10
-        - S19
-        - S21
     "ArtSpeech_Vocal_Tract_Segmentation/1659":
         - S8
         - S9

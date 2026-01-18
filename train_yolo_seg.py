@@ -14,7 +14,8 @@ from ultralytics import YOLO
 
 
 def train_yolo_seg(
-    data_yaml,
+    config_yaml=None,
+    data_yaml=None,
     model_name='yolov8n-seg.pt',
     epochs=100,
     imgsz=224,
@@ -33,6 +34,7 @@ def train_yolo_seg(
     Train YOLO segmentation model
     
     Args:
+        config_yaml: Path to training config YAML (overrides other parameters)
         data_yaml: Path to YOLO dataset YAML config
         model_name: YOLO model variant (yolov8n-seg, yolov8s-seg, yolov8m-seg, yolov8l-seg, yolov8x-seg)
         epochs: Number of training epochs
@@ -48,6 +50,34 @@ def train_yolo_seg(
         resume: Resume from last checkpoint
         pretrained: Use pretrained weights
     """
+    
+    # Load config from YAML if provided
+    if config_yaml:
+        print(f"Loading configuration from: {config_yaml}")
+        with open(config_yaml, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Override parameters from config
+        model_name = config.get('model_name', model_name)
+        epochs = config.get('n_epochs', config.get('epochs', epochs))
+        imgsz = config.get('imgsz', config.get('size', [imgsz, imgsz]))
+        if isinstance(imgsz, list):
+            imgsz = imgsz[0]
+        batch_size = config.get('batch_size', batch_size)
+        device = str(config.get('device', device))
+        patience = config.get('patience', patience)
+        lr0 = config.get('learning_rate', config.get('lr0', lr0))
+        weight_decay = config.get('weight_decay', weight_decay)
+        
+        # Set data_yaml from config if not provided
+        if not data_yaml:
+            output_dir = config.get('output_dir', './data_yolo')
+            data_yaml = os.path.join(output_dir, 'data.yaml')
+        
+        print(f"Configuration loaded successfully!")
+    
+    if not data_yaml:
+        raise ValueError("data_yaml must be provided either directly or via config_yaml")
     
     # Check if CUDA is available
     if device != 'cpu':
@@ -159,9 +189,13 @@ def train_yolo_seg(
 def main():
     parser = argparse.ArgumentParser(description='Train YOLO Segmentation on Vocal Tract dataset')
     
+    # Config file argument (takes precedence)
+    parser.add_argument('--config', type=str, default=None,
+                        help='Path to training config YAML (e.g., config/Nam_exp_01082026/yolo_seg_train.yaml)')
+    
     # Required arguments
-    parser.add_argument('--data', type=str, required=True,
-                        help='Path to YOLO dataset YAML file')
+    parser.add_argument('--data', type=str, default=None,
+                        help='Path to YOLO dataset YAML file (can be set via config)')
     
     # Model arguments
     parser.add_argument('--model', type=str, default='yolov8n-seg.pt',
@@ -201,12 +235,19 @@ def main():
     
     args = parser.parse_args()
     
-    # Check if data YAML exists
-    if not Path(args.data).exists():
-        raise FileNotFoundError(f"Data YAML not found: {args.data}")
+    # Check if config or data YAML exists
+    if args.config:
+        if not Path(args.config).exists():
+            raise FileNotFoundError(f"Config YAML not found: {args.config}")
+    elif args.data:
+        if not Path(args.data).exists():
+            raise FileNotFoundError(f"Data YAML not found: {args.data}")
+    else:
+        raise ValueError("Either --config or --data must be provided")
     
     # Train model
     results, metrics = train_yolo_seg(
+        config_yaml=args.config,
         data_yaml=args.data,
         model_name=args.model,
         epochs=args.epochs,
