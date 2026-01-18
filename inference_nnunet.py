@@ -35,6 +35,10 @@ def load_config(config_path):
             if isinstance(value, str):
                 cfg['paths'][key] = os.path.expandvars(os.path.expanduser(value))
     
+    # Ensure label keys are integers (YAML may load them as strings)
+    if 'labels' in cfg:
+        cfg['labels'] = {int(k): v for k, v in cfg['labels'].items()}
+    
     return cfg
 
 
@@ -128,7 +132,8 @@ def run_inference(predictor, image_paths, output_folder, cfg):
             input_array, properties = reader.read_images([img_path])
             
             # Predict
-            prediction = predictor.predict_from_list_of_npy_arrays(
+            # Note: predict_from_list_of_npy_arrays returns list of tuples: [(pred, props), ...]
+            result = predictor.predict_from_list_of_npy_arrays(
                 [input_array],
                 [None],
                 [properties],
@@ -136,11 +141,18 @@ def run_inference(predictor, image_paths, output_folder, cfg):
                 num_processes=cfg['inference']['num_processes'],
                 save_probabilities=cfg['inference']['save_probabilities'],
                 num_processes_segmentation_export=1
-            )[0]
+            )
+            
+            # Unpack the result - it's a tuple (prediction, properties)
+            if isinstance(result[0], tuple):
+                prediction, pred_properties = result[0]
+            else:
+                prediction = result[0]
+                pred_properties = properties
             
             # Save prediction
             output_path = os.path.join(output_folder, img_name)
-            writer.write_seg(prediction, output_path, properties)
+            writer.write_seg(prediction, output_path, pred_properties)
             
             results.append({
                 'image': img_name,
@@ -364,15 +376,23 @@ def evaluate_predictions(cfg, inference_results):
             gt_nii = nib.load(gt_path)
             input_nii = nib.load(result['input_path'])
             
-            pred_mask = pred_nii.get_fdata().squeeze()
-            gt_mask = gt_nii.get_fdata().squeeze()
-            input_img = input_nii.get_fdata().squeeze()
+            # Get data and ensure they are numpy arrays with proper dtype
+            pred_mask = np.asarray(pred_nii.get_fdata()).squeeze()
+            gt_mask = np.asarray(gt_nii.get_fdata()).squeeze()
+            input_img = np.asarray(input_nii.get_fdata()).squeeze()
+            
+            # Convert to integer for label comparison (segmentation masks should be integers)
+            pred_mask = pred_mask.astype(np.int32)
+            gt_mask = gt_mask.astype(np.int32)
             
             # Store contours for visualization
             image_contours = {'pred': {}, 'gt': {}}
             
             # Evaluate per class
             for label, class_name in label_to_class.items():
+                # Ensure label is integer (not string)
+                label = int(label)
+                
                 eval_item = {
                     'image': img_name,
                     'class': class_name,
@@ -485,7 +505,9 @@ def evaluate_predictions(cfg, inference_results):
                     print(f"  ⚠️  Error creating visualization for {img_name}: {e}")
                 
         except Exception as e:
+            import traceback
             print(f"  ✗ Error evaluating {img_name}: {e}")
+            print(f"     Traceback: {traceback.format_exc()}")
     
     if not eval_results:
         print("No evaluation results generated")
