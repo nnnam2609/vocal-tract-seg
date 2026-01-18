@@ -1,0 +1,73 @@
+# nnUNet Inference Configuration - evaluation RUN
+# Experiment: Nam_exp_01082026
+
+# nnUNet Model Configuration
+model:
+  dataset_name: Dataset003_VocalTract
+  trainer: nnUNetTrainer
+  plans: nnUNetPlans
+  configuration: 2d
+  fold: 0
+  checkpoint: checkpoint_best.pth
+
+# Paths Configuration
+paths:
+  nnunet_results: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/results
+  nnunet_raw: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/raw
+  nnunet_preprocessed: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/preprocessed
+  
+  input_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/raw/Dataset003_VocalTract/imagesTs
+  output_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/inference_output_Nam_exp_01082026_test_no_postproc
+  ground_truth_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/raw/Dataset003_VocalTract/labelsTs
+
+# Case mapping file (for adding subject/sequence/frame to results)
+case_mapping_file: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/nnunet_data/raw/Dataset003_VocalTract/case_mapping_Dataset003_test.csv
+
+# Inference Settings
+inference:
+  tile_step_size: 0.5
+  use_gaussian: true
+  use_mirroring: true
+  device: auto
+  save_probabilities: true
+  num_processes: 4
+  verbose: true
+  verbose_preprocessing: true
+
+# Data Selection 
+data:
+  process_all: true
+
+# Evaluation Configuration
+evaluation:
+  enabled: true
+  metrics:
+    - p2cp_mean
+    - p2cp_rms
+    - jaccard_index
+  closed_articulators:
+    - thyroid-cartilage
+    - vocal-folds
+  save_maskrcnn_format: true
+  save_csv: true
+  save_visualizations: true
+
+# Label Mapping
+labels:
+  1: arytenoid-cartilage
+  2: epiglottis
+  3: lower-lip
+  4: pharynx
+  5: soft-palate-midline
+  6: thyroid-cartilage
+  7: tongue
+  8: upper-lip
+  9: vocal-folds
+
+# Post-processing
+postprocessing:
+  extract_contours: false
+  regularize_bspline: false
+  bspline_degree: 4
+  bspline_points: 150
+  save_contours: true
