@@ -18,6 +18,7 @@
 logs/*
 !config/thesis_config/*.yaml
 !config/Nam_exp_01082026/*.yaml
+config/Nam_exp_01082026/*.md
 command/*
 .ipynb_checkpoints
 __pycache__
