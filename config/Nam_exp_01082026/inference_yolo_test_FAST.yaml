@@ -1,0 +1,84 @@
+# YOLO Segmentation Inference Configuration - FAST MODE
+# Experiment: Nam_exp_01202026 - Speed Optimized
+
+# YOLO Model Configuration
+model:
+  weights: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/runs/segment/vocal_tract_yolo26x_1000ep/weights/best.pt
+  task: segment
+  device: 0  # GPU device (0, 1, ...) or 'cpu'
+
+# Paths Configuration
+paths:
+  data_yaml: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/data.yaml
+  
+  input_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/images/test
+  output_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/inference_output_yolo_Nam_exp_01202026_all_fast
+  ground_truth_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/labels/test
+
+# Case mapping file (optional - for adding subject/sequence/frame to results)
+case_mapping_file: null
+
+# Inference Settings - OPTIMIZED FOR SPEED
+inference:
+  conf_threshold: 0.25  # Confidence threshold for detections
+  iou_threshold: 0.65   # IoU threshold for NMS
+  max_det: 300          # Maximum number of detections
+  imgsz: 640            # Image size for inference
+  augment: false        # Disabled - augmentation is slow
+  half: true            # ✅ ENABLED - FP16 for ~2x speed
+  verbose: false        # ✅ Disabled to avoid print overhead
+  batch_size: 32        # ✅ INCREASED - 32 for faster processing (adjust based on GPU memory)
+  use_batch_predict: true  # ✅ Use batch prediction for speed
+
+# Data Selection 
+data:
+  process_all: true     # Process all images in input_folder
+  specific_images: []   # Empty list
+
+# Evaluation Configuration - MINIMAL FOR SPEED
+evaluation:
+  enabled: true
+  metrics:
+    - p2cp_mean
+    - p2cp_rms
+    - jaccard_index
+  closed_articulators:
+    - thyroid-cartilage
+    - vocal-folds
+  save_csv: true
+  save_visualizations: false  # ✅ DISABLED - This is the BIGGEST bottleneck (saves ~90% time)
+  save_per_image: false       # ✅ DISABLED
+  save_summary: true
+
+# Label Mapping (YOLO class indices to names)
+labels:
+  0: arytenoid-cartilage
+  1: epiglottis
+  2: lower-lip
+  3: pharynx
+  4: soft-palate-midline
+  5: thyroid-cartilage
+  6: tongue
+  7: upper-lip
+  8: vocal-folds
+
+# Post-processing - SIMPLIFIED FOR SPEED
+postprocessing:
+  use_vt_tracker: false        # ✅ DISABLED - vt_tracker is very slow
+  extract_contours: true       # Keep for metrics
+  regularize_bspline: false    # ✅ DISABLED - B-spline is slow
+  bspline_degree: 2
+  bspline_points: 100
+  save_contours: false         # ✅ DISABLED
+
+# Visualization Settings (not used when save_visualizations: false)
+visualization:
+  dpi: 100                     # Lower DPI if visualizations are needed later
+  figsize: [15, 10]
+  show_confidence: true
+  overlay_alpha: 0.5
+  contour_linewidth: 2.0
+  gt_linestyle: '-'
+  pred_linestyle: '--'
+  show_raw_segmentation: false  # ✅ Disabled to reduce processing
+

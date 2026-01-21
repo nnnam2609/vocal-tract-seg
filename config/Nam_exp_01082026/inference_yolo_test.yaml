@@ -1,0 +1,87 @@
+# YOLO Segmentation Inference Configuration - evaluation RUN
+# Experiment: Nam_exp_01082026
+
+# YOLO Model Configuration
+model:
+  weights: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/runs/segment/vocal_tract_yolo26x_1000ep/weights/best.pt
+  task: segment
+  device: 0  # GPU device (0, 1, ...) or 'cpu'
+
+# Paths Configuration
+paths:
+  data_yaml: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/data.yaml
+  
+  input_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/images/test
+  output_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/inference_output_yolo_Nam_exp_01202026_all
+  ground_truth_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/labels/test
+
+# Case mapping file (optional - for adding subject/sequence/frame to results)
+case_mapping_file: null
+
+# Inference Settings
+inference:
+  conf_threshold: 0.25  # Confidence threshold for detections
+  iou_threshold: 0.65   # IoU threshold for NMS
+  max_det: 300          # Maximum number of detections
+  imgsz: 640            # Image size for inference
+  augment: false        # Use test-time augmentation
+  half: true           # Use FP16 half-precision inference
+  verbose: true         # Print verbose output
+  batch_size: 32        # Batch size for inference (higher = faster but more memory)
+  use_batch_predict: true  # Use batch prediction for speed
+
+# Data Selection 
+data:
+  process_all: true     # Process all images in input_folder
+  specific_images:   # List of specific image names to process (if process_all is false)
+  # Example:
+  # specific_images:
+    # - ArtSpeech_Database_2_1775_S9_1057.jpg
+    # - ArtSpeech_Vocal_Tract_Segmentation_1612_S12_1030.jpg
+
+# Evaluation Configuration
+evaluation:
+  enabled: true
+  metrics:
+    - p2cp_mean
+    - p2cp_rms
+    - jaccard_index
+  closed_articulators:
+    - thyroid-cartilage
+    - vocal-folds
+  save_csv: true
+  save_visualizations: true
+  save_per_image: true
+  save_summary: true
+
+# Label Mapping (YOLO class indices to names)
+labels:
+  0: arytenoid-cartilage
+  1: epiglottis
+  2: lower-lip
+  3: pharynx
+  4: soft-palate-midline
+  5: thyroid-cartilage
+  6: tongue
+  7: upper-lip
+  8: vocal-folds
+
+# Post-processing
+postprocessing:
+  extract_contours: true
+  regularize_bspline: true
+  bspline_degree: 2
+  bspline_points: 100
+  save_contours: false
+  contour_output_folder: null  # If null, will use output_folder/contours
+
+# Visualization Settings
+visualization:
+  dpi: 100
+  figsize: [20, 14]  # Increased for more panels
+  show_confidence: true
+  overlay_alpha: 0.5
+  contour_linewidth: 2.5
+  gt_linestyle: '-'        # Solid line for ground truth
+  pred_linestyle: '--'     # Dashed line for predictions
+  show_raw_segmentation: true  # Show raw masks before contour extraction
