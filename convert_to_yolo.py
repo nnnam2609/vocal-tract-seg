@@ -1,48 +1,33 @@
 """
-Convert Vocal Tract dataset directly from ROI polygons to YOLO segmentation format.
-This approach preserves annotation quality by avoiding mask conversion.
+Convert ROI Contours to YOLOv8 Segmentation Labels (Ribbon Mask Approach)
 
-YOLO segmentation format:
-- Images in images/train, images/val folders
-- Labels in labels/train, labels/val folders
-- Each label file contains: class_id x1 y1 x2 y2 ... (normalized polygon coordinates)
+This script converts ROI contour annotations (from ImageJ) into YOLOv8 segmentation format.
+For open contours (polylines), it creates thin "ribbon" masks that are valid closed polygons.
 
-Image Format:
-- RGB images where each channel represents temporal information:
-  * R channel: frame at time t-1 (previous frame)
-  * G channel: frame at time t (current frame)
-  * B channel: frame at time t+1 (next frame)
-- Raw images without ImageNet normalization
+Key features:
+- Handles both open and closed contours
+- Creates thin ribbon masks for open contours
+- Properly scales coordinates from original image size (136x136) to target size (224x224)
+- Supports temporal RGB format (t-1, t, t+1 frames)
+- Configurable via YAML config file
+
+Author: GitHub Copilot
+Date: 2026-01-21
 """
 
 import os
-import yaml
 import cv2
 import numpy as np
 from pathlib import Path
-from PIL import Image
 from tqdm import tqdm
+import yaml
 import argparse
-
+from PIL import Image
 from read_roi import read_roi_file
-from helpers import sequences_from_dict
-
-
-def load_config(config_path):
-    """Load YAML configuration file"""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
 
 
 def uint16_to_uint8(img_arr, norm_hist=True):
-    """
-    Converts an uint16 image into a uint8 image.
-    
-    Args:
-        img_arr (np.ndarray): uint16 image array to be converted.
-        norm_hist (bool): If should perform histogram equalization.
-    """
+    """Convert uint16 image to uint8 with histogram normalization"""
     max_val = np.amax(img_arr)
     img_arr = img_arr.astype(float) * 255 / max_val
     img_arr = img_arr.astype(np.uint8)
@@ -94,296 +79,453 @@ def load_raw_image(filepath_t, filepath_t_minus_1, filepath_t_plus_1, size=(224,
     return Image.fromarray(rgb_resized, mode='RGB')
 
 
-def roi_to_yolo_polygon(roi_file_path, original_size, target_size):
+def create_ribbon_mask(contour_points, image_shape, thickness=5, dilation_iterations=0):
     """
-    Convert ROI polygon file to YOLO format (normalized coordinates)
+    Create a thin ribbon mask around an open contour
     
     Args:
-        roi_file_path: Path to the ROI file
-        original_size: (width, height) of the original image before resizing
-        target_size: (width, height) of the target image after resizing
+        contour_points: numpy array of shape (N, 2) with (x, y) pixel coordinates
+        image_shape: (height, width) of the image
+        thickness: thickness of the ribbon in pixels (default: 5)
+        dilation_iterations: number of dilation iterations to apply (default: 0)
     
     Returns:
-        List of normalized coordinates [x1, y1, x2, y2, ...] relative to target_size
+        Binary mask (H, W) with the ribbon filled, or None if failed
     """
-    if roi_file_path is None:
+    h, w = image_shape
+    
+    # Create empty mask
+    mask = np.zeros((h, w), dtype=np.uint8)
+    
+    # Convert contour points to integer pixel coordinates
+    points = np.array(contour_points, dtype=np.int32)
+    
+    # Ensure points are within image bounds
+    points[:, 0] = np.clip(points[:, 0], 0, w - 1)
+    points[:, 1] = np.clip(points[:, 1], 0, h - 1)
+    
+    # Draw thick polyline (open contour)
+    cv2.polylines(mask, [points], isClosed=False, color=1, thickness=thickness)
+    
+    # Optional: apply dilation to make ribbon thicker or connect gaps
+    if dilation_iterations > 0:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.dilate(mask, kernel, iterations=dilation_iterations)
+    
+    # Optional: apply morphological closing to smooth the ribbon
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    
+    return mask
+
+
+def extract_ribbon_polygon(mask, epsilon_factor=0.001):
+    """
+    Extract the outer boundary polygon from a ribbon mask
+    
+    Args:
+        mask: Binary mask (H, W) with ribbon filled
+        epsilon_factor: Simplification factor for approxPolyDP (as fraction of perimeter)
+    
+    Returns:
+        Contour points as numpy array (N, 2), or None if extraction failed
+    """
+    # Find contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if len(contours) == 0:
         return None
     
+    # Get the largest contour
+    contour = max(contours, key=cv2.contourArea)
+    
+    # Check if contour is valid
+    if len(contour) < 3:
+        return None
+    
+    # Simplify polygon to reduce number of points
+    perimeter = cv2.arcLength(contour, closed=True)
+    epsilon = epsilon_factor * perimeter
+    approx = cv2.approxPolyDP(contour, epsilon, closed=True)
+    
+    # Convert from (N, 1, 2) to (N, 2)
+    polygon = approx.squeeze()
+    
+    # Ensure we have at least 3 points
+    if len(polygon.shape) == 1 or len(polygon) < 3:
+        return None
+    
+    return polygon
+
+
+def polygon_to_yolo_format(polygon, image_shape):
+    """
+    Convert polygon points to YOLO segmentation format
+    
+    Args:
+        polygon: numpy array (N, 2) with (x, y) pixel coordinates
+        image_shape: (height, width) of the image
+    
+    Returns:
+        List of normalized coordinates [x1, y1, x2, y2, ..., xN, yN]
+    """
+    h, w = image_shape
+    
+    # Normalize coordinates to [0, 1]
+    normalized = []
+    for x, y in polygon:
+        x_norm = np.clip(x / w, 0.0, 1.0)
+        y_norm = np.clip(y / h, 0.0, 1.0)
+        normalized.extend([x_norm, y_norm])
+    
+    return normalized
+
+
+def contour_to_yolo_ribbon(contour_points, image_shape, thickness=5, 
+                           dilation_iterations=0, epsilon_factor=0.001):
+    """
+    Convert open contour to YOLO segmentation format using ribbon mask approach
+    
+    Args:
+        contour_points: numpy array (N, 2) with (x, y) pixel coordinates
+        image_shape: (height, width) of the image
+        thickness: ribbon thickness in pixels
+        dilation_iterations: number of dilation iterations
+        epsilon_factor: polygon simplification factor
+    
+    Returns:
+        List of normalized YOLO coordinates, or None if failed
+    """
+    # Step 1: Create ribbon mask
+    ribbon_mask = create_ribbon_mask(contour_points, image_shape, thickness, dilation_iterations)
+    
+    if ribbon_mask is None or ribbon_mask.sum() == 0:
+        return None
+    
+    # Step 2: Extract polygon from ribbon mask
+    polygon = extract_ribbon_polygon(ribbon_mask, epsilon_factor)
+    
+    if polygon is None:
+        return None
+    
+    # Step 3: Convert to YOLO format
+    yolo_coords = polygon_to_yolo_format(polygon, image_shape)
+    
+    return yolo_coords
+
+
+def roi_to_yolo_ribbon(roi_file_path, original_size, target_size, thickness=5):
+    """
+    Convert ROI file to YOLO ribbon polygon format
+    
+    Args:
+        roi_file_path: Path to .roi file
+        original_size: (width, height) of the original image before resizing
+        target_size: (width, height) of the target image after resizing
+        thickness: ribbon thickness in pixels
+    
+    Returns:
+        List of normalized YOLO coordinates, or None if failed
+    """
     try:
-        # Read ROI file - it returns a dict with ROI name as key
-        roi_dict = read_roi_file(roi_file_path)
+        # Read ROI file
+        roi_dict = read_roi_file(str(roi_file_path))
+        
+        # Check if reading failed
+        if roi_dict is None:
+            return None
+        
         # Get the first (and only) ROI data
         roi = list(roi_dict.values())[0]
         
-        x_coords = roi.get('x')
-        y_coords = roi.get('y')
+        # Extract coordinates
+        x_coords = roi.get('x', None)
+        y_coords = roi.get('y', None)
         
-        if x_coords is None or y_coords is None or len(x_coords) < 3:
+        if x_coords is None or y_coords is None:
             return None
         
+        x_coords = np.array(x_coords, dtype=np.float32)
+        y_coords = np.array(y_coords, dtype=np.float32)
+        
+        if len(x_coords) < 2 or len(y_coords) < 2:
+            return None
+        
+        # Scale coordinates from original to target size
         orig_w, orig_h = original_size
         target_w, target_h = target_size
         
-        # Normalize coordinates to target size
-        polygon = []
-        for x, y in zip(x_coords, y_coords):
-            # Scale from original to target size
-            x_scaled = x * (target_w / orig_w)
-            y_scaled = y * (target_h / orig_h)
-            # Normalize to [0, 1] and clamp
-            x_norm = max(0.0, min(1.0, x_scaled / target_w))
-            y_norm = max(0.0, min(1.0, y_scaled / target_h))
-            polygon.extend([x_norm, y_norm])
+        x_scaled = x_coords * (target_w / orig_w)
+        y_scaled = y_coords * (target_h / orig_h)
         
-        return polygon
+        # Combine into contour points
+        contour_points = np.column_stack([x_scaled, y_scaled])
+        
+        # Convert to ribbon polygon using target image size
+        yolo_coords = contour_to_yolo_ribbon(
+            contour_points, (target_h, target_w),  # image_shape is (height, width)
+            thickness=thickness,
+            dilation_iterations=1,  # Add slight dilation to ensure connectivity
+            epsilon_factor=0.002    # Moderate simplification
+        )
+        
+        return yolo_coords
+        
     except Exception as e:
+        print(f"Error processing ROI file {roi_file_path}: {e}")
+        return None
+        print(f"Error processing ROI file {roi_file_path}: {e}")
         return None
 
 
-def collect_data(datadir, sequences, classes, image_folder, image_ext, exclusion_list=None):
+def convert_dataset_to_yolo(config, output_dir, split, thickness=5, 
+                            adaptive_thickness=True):
     """
-    Collect all data items from the dataset
-    
-    Returns:
-        List of dictionaries with image paths and ROI file paths
-    """
-    data = []
-    if exclusion_list is None:
-        exclusion_list = []
-    
-    for subject, sequence in sequences:
-        seq_dir = os.path.join(datadir, subject, sequence)
-        image_dir = os.path.join(seq_dir, image_folder)
-        contours_dir = os.path.join(seq_dir, "contours")
-        
-        if not os.path.exists(image_dir):
-            print(f"Warning: Image directory not found: {image_dir}")
-            continue
-        
-        # Find all images
-        image_files = sorted([f for f in os.listdir(image_dir) if f.endswith(f'.{image_ext}')])
-        
-        for img_file in image_files:
-            instance_number = int(os.path.splitext(img_file)[0])
-            
-            if (subject, sequence, instance_number) in exclusion_list:
-                continue
-            
-            # Current frame
-            img_path = os.path.join(image_dir, img_file)
-            
-            # Previous frame (t-1)
-            img_m1_filename = f"{instance_number-1:04d}.{image_ext}"
-            img_m1_path = os.path.join(image_dir, img_m1_filename)
-            if not os.path.exists(img_m1_path):
-                img_m1_path = None
-            
-            # Next frame (t+1)
-            img_p1_filename = f"{instance_number+1:04d}.{image_ext}"
-            img_p1_path = os.path.join(image_dir, img_p1_filename)
-            if not os.path.exists(img_p1_path):
-                img_p1_path = None
-            
-            # ROI files for each class
-            rois = {}
-            has_any_roi = False
-            has_all_rois = True
-            for cls in classes:
-                roi_filename = f"{instance_number:04d}_{cls}.roi"
-                roi_path = os.path.join(contours_dir, roi_filename)
-                
-                if os.path.exists(roi_path):
-                    rois[cls] = roi_path
-                    has_any_roi = True
-                else:
-                    rois[cls] = None
-                    has_all_rois = False
-            
-            # Only include items with complete annotations (all classes present)
-            if has_all_rois:
-                data.append({
-                    'subject': subject,
-                    'sequence': sequence,
-                    'instance_number': instance_number,
-                    'img_path': img_path,
-                    'img_m1_path': img_m1_path,
-                    'img_p1_path': img_p1_path,
-                    'rois': rois
-                })
-    
-    return data
-
-
-def convert_dataset_to_yolo(config, output_dir, split='train'):
-    """
-    Convert dataset split to YOLO format using direct ROI to polygon conversion
+    Convert dataset to YOLO format using ribbon mask approach
     
     Args:
         config: Configuration dictionary
-        output_dir: Base output directory for YOLO dataset
+        output_dir: Output directory path
         split: 'train', 'valid', or 'test'
+        thickness: Base ribbon thickness in pixels (from config: ribbon_thickness)
+        adaptive_thickness: If True, adjust thickness based on image size (from config: adaptive_thickness)
+    
+    Returns:
+        Number of images converted
     """
-    # Create directories
-    images_dir = Path(output_dir) / 'images' / split
-    labels_dir = Path(output_dir) / 'labels' / split
+    # Get configuration
+    datadir = Path(config['datadir'])
+    classes = config['classes']
+    class_to_id = {cls: idx for idx, cls in enumerate(classes)}
+    sequences = config.get(f'{split}_sequences', {})
+    
+    image_folder = config.get('image_folder', 'dicoms')
+    image_ext = config.get('image_ext', 'dcm')
+    
+    # Create output directories
+    images_dir = output_dir / 'images' / split
+    labels_dir = output_dir / 'labels' / split
     images_dir.mkdir(parents=True, exist_ok=True)
     labels_dir.mkdir(parents=True, exist_ok=True)
     
-    # Get sequences for this split
-    sequences_key = f"{split}_sequences"
-    if sequences_key not in config:
-        print(f"Warning: {sequences_key} not found in config")
-        return 0
-    
-    sequences = sequences_from_dict(config['datadir'], config[sequences_key])
-    
-    print(f"\n{'='*60}")
-    print(f"Processing {split} split...")
-    print(f"{'='*60}")
-    
-    # Collect data
-    data = collect_data(
-        datadir=config['datadir'],
-        sequences=sequences,
-        classes=config['classes'],
-        image_folder=config.get('image_folder', 'dicoms'),
-        image_ext=config.get('image_ext', 'dcm'),
-        exclusion_list=config.get('exclusion_list', None)
-    )
-    
-    print(f"Found {len(data)} images")
-    
-    if len(data) == 0:
-        return 0
-    
-    # Class mapping
-    classes = sorted(config['classes'])
-    class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
-    
-    # Get target size
-    size = tuple(config.get('size', [224, 224]))
-    
     converted_count = 0
+    skipped_count = 0
+    ribbon_stats = {cls: {'success': 0, 'failed': 0} for cls in classes}
     
-    for item in tqdm(data, desc=f"Converting {split}"):
-        try:
-            # Create unique filename
-            subject = item['subject'].replace('/', '_')
-            sequence = item['sequence']
-            instance = item['instance_number']
-            filename = f"{subject}_{sequence}_{instance:04d}"
+    print(f"\nProcessing {split} split...")
+    
+    # Iterate through sequences
+    for subject, sequence_list in tqdm(sequences.items(), desc=f"Converting {split}"):
+        for sequence in sequence_list:
+            seq_dir = datadir / subject / sequence
+            contours_dir = seq_dir / "contours"
+            images_source_dir = seq_dir / image_folder
             
-            # Load and save raw RGB image with temporal information
-            img_rgb = load_raw_image(
-                filepath_t=item['img_path'],
-                filepath_t_minus_1=item['img_m1_path'],
-                filepath_t_plus_1=item['img_p1_path'],
-                size=size
-            )
+            if not contours_dir.exists() or not images_source_dir.exists():
+                continue
             
-            img_path = images_dir / f"{filename}.jpg"
-            img_rgb.save(img_path, quality=95)
+            # Get all instance numbers from contour files
+            roi_files = list(contours_dir.glob("*.roi"))
+            instance_numbers = set()
+            for roi_file in roi_files:
+                # Extract instance number from filename: NNNN_classname.roi
+                instance_num = roi_file.stem.split('_')[0]
+                if instance_num.isdigit():
+                    instance_numbers.add(int(instance_num))
             
-            # Convert ROI polygons to YOLO format
-            label_lines = []
-            for cls in classes:
-                roi_path = item['rois'].get(cls)
+            # Process each instance
+            for instance_num in sorted(instance_numbers):
+                # Generate output filename
+                subject_name = subject.replace('/', '_')
+                seq_name = sequence.replace('/', '_')
+                output_name = f"{subject_name}_{seq_name}_{instance_num:04d}"
                 
-                if roi_path is None:
+                # Get image paths for temporal context
+                image_file_t = images_source_dir / f"{instance_num:04d}.{image_ext}"
+                image_file_t_minus = images_source_dir / f"{instance_num-1:04d}.{image_ext}"
+                image_file_t_plus = images_source_dir / f"{instance_num+1:04d}.{image_ext}"
+                
+                if not image_file_t.exists():
                     continue
                 
-                # Read and convert ROI to YOLO polygon
-                # Original images are 136x136, target size is from config
-                polygon = roi_to_yolo_polygon(
-                    roi_file_path=roi_path,
-                    original_size=(136, 136),  # Original numpy image size
-                    target_size=size  # Target size after resizing
-                )
+                # Use None if temporal files don't exist
+                if not image_file_t_minus.exists():
+                    image_file_t_minus = None
+                if not image_file_t_plus.exists():
+                    image_file_t_plus = None
                 
-                if polygon is None or len(polygon) < 6:  # Need at least 3 points
+                try:
+                    # Load image with temporal context
+                    target_size = tuple(config.get('size', [224, 224]))
+                    img_pil = load_raw_image(
+                        filepath_t=str(image_file_t),
+                        filepath_t_minus_1=str(image_file_t_minus) if image_file_t_minus else None,
+                        filepath_t_plus_1=str(image_file_t_plus) if image_file_t_plus else None,
+                        size=target_size
+                    )
+                    
+                    # Convert to numpy for processing
+                    img_rgb = np.array(img_pil)
+                    h, w = img_rgb.shape[:2]
+                    
+                    # Adaptive thickness based on image size
+                    if adaptive_thickness:
+                        # Scale thickness with image size (larger images get thicker ribbons)
+                        base_size = 224  # Reference size
+                        scale = min(h, w) / base_size
+                        adjusted_thickness = max(3, int(thickness * scale))
+                    else:
+                        adjusted_thickness = thickness
+                    
+                except Exception as e:
+                    print(f"Error loading image {image_file_t}: {e}")
+                    skipped_count += 1
                     continue
                 
-                class_id = class_to_idx[cls]
+                # Process each class for this instance
+                yolo_labels = []
                 
-                # Format: class_id x1 y1 x2 y2 ...
-                line = f"{class_id}"
-                for coord in polygon:
-                    line += f" {coord:.6f}"
-                label_lines.append(line)
-            
-            # Save label file
-            if label_lines:
-                label_path = labels_dir / f"{filename}.txt"
-                with open(label_path, 'w') as f:
-                    f.write('\n'.join(label_lines))
-                converted_count += 1
-            
-        except Exception as e:
-            print(f"\nError processing {item['img_path']}: {e}")
-            continue
+                # Original image size (before resizing) - npy files are typically 136x136
+                original_size = (136, 136)
+                
+                for class_name in classes:
+                    roi_file = contours_dir / f"{instance_num:04d}_{class_name}.roi"
+                    
+                    if not roi_file.exists():
+                        continue
+                    
+                    # Convert ROI to ribbon polygon
+                    # Pass both original size (for ROI coords) and target size (for ribbon)
+                    yolo_coords = roi_to_yolo_ribbon(
+                        roi_file, 
+                        original_size=original_size,
+                        target_size=target_size,
+                        thickness=adjusted_thickness
+                    )
+                    
+                    if yolo_coords is not None and len(yolo_coords) >= 6:  # At least 3 points
+                        class_id = class_to_id[class_name]
+                        yolo_labels.append([class_id] + yolo_coords)
+                        ribbon_stats[class_name]['success'] += 1
+                    else:
+                        ribbon_stats[class_name]['failed'] += 1
+                
+                # Save image and label if we have any valid annotations
+                if len(yolo_labels) > 0:
+                    # Save image (PIL Image)
+                    output_image = images_dir / f"{output_name}.jpg"
+                    img_pil.save(output_image, quality=95)
+                    
+                    # Save label
+                    output_label = labels_dir / f"{output_name}.txt"
+                    with open(output_label, 'w') as f:
+                        for label in yolo_labels:
+                            class_id = label[0]
+                            coords = label[1:]
+                            coords_str = ' '.join([f"{c:.6f}" for c in coords])
+                            f.write(f"{class_id} {coords_str}\n")
+                    
+                    converted_count += 1
     
-    print(f"Successfully converted {converted_count}/{len(data)} images for {split}")
+    # Print statistics
+    print(f"\n{split.upper()} Statistics:")
+    print(f"  Images converted: {converted_count}")
+    print(f"  Images skipped: {skipped_count}")
+    print(f"\nRibbon conversion statistics:")
+    for class_name, stats in ribbon_stats.items():
+        total = stats['success'] + stats['failed']
+        if total > 0:
+            success_rate = stats['success'] / total * 100
+            print(f"  {class_name:25s}: {stats['success']:4d} success, {stats['failed']:4d} failed ({success_rate:.1f}%)")
+    
     return converted_count
 
 
-def create_yaml_config(output_dir, classes, splits=['train', 'valid', 'test']):
+def create_yaml_config(output_dir, classes, ribbon_thickness):
     """
-    Create YOLO dataset configuration YAML file
+    Create YOLO data.yaml configuration file
     """
-    yaml_content = {
-        'path': str(Path(output_dir).absolute()),
+    data_config = {
+        'path': str(output_dir.absolute()),
         'train': 'images/train',
         'val': 'images/valid',
         'test': 'images/test',
-        'names': {idx: cls for idx, cls in enumerate(sorted(classes))},
-        'nc': len(classes)
+        'names': {i: name for i, name in enumerate(classes)},
+        'nc': len(classes),
+        'ribbon_thickness': ribbon_thickness,
+        'conversion_method': 'open_contour_ribbon_mask'
     }
     
-    yaml_path = Path(output_dir) / 'data.yaml'
+    yaml_path = output_dir / 'data.yaml'
     with open(yaml_path, 'w') as f:
-        yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(data_config, f, default_flow_style=False, sort_keys=False)
     
-    print(f"\nYOLO config saved to: {yaml_path}")
-    return yaml_path
+    print(f"\nCreated YOLO config: {yaml_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert dataset to YOLO segmentation format (direct ROI to polygon)')
-    parser.add_argument('--config', type=str, required=True, 
-                        help='Path to training config YAML file')
-    parser.add_argument('--output_dir', type=str, default='./data_yolo',
-                        help='Output directory for YOLO dataset')
+    parser = argparse.ArgumentParser(
+        description='Convert ROI contours to YOLO segmentation format using ribbon mask approach'
+    )
+    parser.add_argument('--config', type=str, required=True,
+                        help='Path to dataset configuration YAML file')
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='Output directory for YOLO dataset (default: from config)')
+    parser.add_argument('--thickness', type=int, default=None,
+                        help='Base ribbon thickness in pixels (default: from config or 5)')
+    parser.add_argument('--adaptive_thickness', action='store_true', default=None,
+                        help='Automatically adjust thickness based on image size (default: from config or True)')
+    parser.add_argument('--no_adaptive_thickness', dest='adaptive_thickness', action='store_false',
+                        help='Use fixed thickness for all images')
     
     args = parser.parse_args()
     
     # Load config
     print(f"Loading config from: {args.config}")
-    config = load_config(args.config)
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Get parameters from config or command line (command line overrides config)
+    output_dir_path = args.output_dir if args.output_dir else config.get('output_dir', './data_yolo_ribbon')
+    thickness = args.thickness if args.thickness is not None else config.get('ribbon_thickness', 5)
+    adaptive_thickness = args.adaptive_thickness if args.adaptive_thickness is not None else config.get('adaptive_thickness', True)
     
     # Create output directory
-    output_dir = Path(args.output_dir)
+    output_dir = Path(output_dir_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"\nConverting dataset to YOLO format (direct ROI to polygon)...")
+    print(f"\n{'='*60}")
+    print("Converting ROI contours to YOLO format (Ribbon Mask Approach)")
+    print(f"{'='*60}")
     print(f"Output directory: {output_dir}")
+    print(f"Base ribbon thickness: {thickness} pixels")
+    print(f"Adaptive thickness: {adaptive_thickness}")
+    print(f"Original image size: {config.get('original_image_size', [136, 136])}")
+    print(f"Target image size: {config.get('size', [224, 224])}")
     print(f"Classes: {config['classes']}")
     print(f"Image folder: {config.get('image_folder', 'dicoms')}")
     print(f"Image extension: {config.get('image_ext', 'dcm')}")
+    print(f"{'='*60}\n")
     
     # Convert each split
     total_converted = 0
     for split in ['train', 'valid', 'test']:
-        count = convert_dataset_to_yolo(config, output_dir, split)
-        total_converted += count
+        if f'{split}_sequences' in config:
+            count = convert_dataset_to_yolo(
+                config, output_dir, split,
+                thickness=thickness,
+                adaptive_thickness=adaptive_thickness
+            )
+            total_converted += count
     
     # Create YOLO config YAML
-    create_yaml_config(output_dir, config['classes'])
+    create_yaml_config(output_dir, config['classes'], thickness)
     
     print(f"\n{'='*60}")
     print(f"Conversion complete!")
     print(f"Total images converted: {total_converted}")
-    print(f"Dataset ready for YOLO training at: {output_dir}")
-    print(f"{'='*60}")
+    print(f"Output directory: {output_dir}")
+    print(f"{'='*60}\n")
 
 
 if __name__ == "__main__":
