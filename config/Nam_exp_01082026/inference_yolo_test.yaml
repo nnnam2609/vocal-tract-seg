@@ -3,17 +3,17 @@
 
 # YOLO Model Configuration
 model:
-  weights: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/runs/segment/vocal_tract_yolo26x_1000ep/weights/best.pt
+  weights: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/runs/segment/vocal_tract_yolo11_seg_2_pixel/weights/best.pt
   task: segment
   device: 0  # GPU device (0, 1, ...) or 'cpu'
 
 # Paths Configuration
 paths:
-  data_yaml: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/data.yaml
-  
-  input_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/images/test
-  output_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/inference_output_yolo_Nam_exp_01202026_all
-  ground_truth_folder: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/data_yolo/labels/test
+  data_yaml: ./data_yolo_ribbon_2_px/data.yaml
+
+  input_folder: ./data_yolo_ribbon_2_px/images/test
+  output_folder: ./inference_output_yolo_Nam_exp_01222026_all1
+  ground_truth_folder: ./data_yolo_ribbon_2_px/labels/test
 
 # Case mapping file (optional - for adding subject/sequence/frame to results)
 case_mapping_file: null
