@@ -11,7 +11,18 @@ weight_decay: 0.0005
 size: [224, 224]  # YOLO works better with 224x224 or larger
 imgsz: 224  # Image size for YOLO training
 device: '0'  # CUDA device
-output_dir: ./data_yolo  # Output directory for converted YOLO dataset
+output_dir: ./data_yolo_ribbon_2_px  # Output directory for converted YOLO dataset
+
+# Ribbon Mask Configuration (for open contours)
+original_image_size: [136, 136]  # Original size of numpy images (before resize)
+ribbon_thickness: 2  # Base thickness for ribbon mask (in pixels)
+adaptive_thickness: False  # Automatically adjust thickness based on image size
+
+# Polygon closure configuration
+polygon_mode: auto  # Options: 'auto' (close only specific articulators), 'all' (close all), 'none' (keep all open)
+closed_articulators:  # Articulators to close when polygon_mode is 'auto'
+    - thyroid-cartilage
+    - vocal-folds
 
 train_sequences:
     "ArtSpeech_Vocal_Tract_Segmentation/1612":
