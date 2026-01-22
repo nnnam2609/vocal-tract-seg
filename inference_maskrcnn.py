@@ -76,7 +76,7 @@ class InferenceVocalTractMaskRCNNDataset(VocalTractMaskRCNNDataset):
         img_arr = self.to_tensor(self.resize(img))
         img_arr = self.normalize(img_arr)
 
-        if self.augmentations:
+        if hasattr(self, 'augmentations') and self.augmentations:
             img_arr = self.augmentations(img_arr)
 
         info = {
@@ -123,6 +123,12 @@ def run_border_segmentation_inference(model, dataloader, outputs_dir, class_map,
 
                 for box, label, score, mask in detected:
                     mask_arr = mask.squeeze(dim=0).cpu().numpy()
+                    
+                    # Save raw mask (before thresholding)
+                    raw_mask_arr = (mask_arr * 255).astype(np.uint8)
+                    raw_mask_img = Image.fromarray(raw_mask_arr)
+                    
+                    # Apply thresholding if specified
                     if threshold is not None:
                         mask_arr[mask_arr > threshold] = 1.
                         mask_arr[mask_arr <= threshold] = 0.
@@ -140,11 +146,20 @@ def run_border_segmentation_inference(model, dataloader, outputs_dir, class_map,
                         os.makedirs(mask_dirname)
 
                     pred_cls = class_map[label.item()]
+                    
+                    # Save thresholded mask
                     mask_filepath = os.path.join(
                         mask_dirname,
                         f"{'%04d' % im_info['instance_number']}_{pred_cls}.png"
                     )
                     mask_img.save(mask_filepath)
+                    
+                    # Save raw mask (with _raw suffix)
+                    raw_mask_filepath = os.path.join(
+                        mask_dirname,
+                        f"{'%04d' % im_info['instance_number']}_{pred_cls}_raw.png"
+                    )
+                    raw_mask_img.save(raw_mask_filepath)
 
                     im_outputs_with_info = deepcopy(im_info)
                     im_outputs_with_info.update({
