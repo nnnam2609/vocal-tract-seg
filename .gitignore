@@ -28,8 +28,9 @@ data
 mlruns/*
 command/*
 
-# YOLO training artifacts
-data_yolo/
+# YOLO training artifacts and data folders
+data*/
+data_*/
 nnUNet/
 *.pt
 
