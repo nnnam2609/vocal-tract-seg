@@ -1,4 +1,4 @@
-# Ultralytics YOLO 🚀 Configuration for Vocal Tract MRI Segmentation
+# Ultralytics YOLO  Configuration for Vocal Tract MRI Segmentation
 # Strongest model + long training
 # Intended for sagittal vocal tract MRI articulator segmentation
 
@@ -8,11 +8,11 @@ mode: train
 
 # Train settings ---------------------------------------------------------------
 model: yolo11x-seg.pt          # YOLO11 nano segmentation model (good for testing; use yolo11m/l/x for best results)
-data: ./data_yolo/data.yaml    # path to your dataset yaml
+data: ./data_yolo_ribbon_2_px/data.yaml    # path to your dataset yaml
 epochs: 1000                   # requested
 time:                          # optional max training hours (leave empty)
 patience: 50                   # requested
-batch: -1                      # AutoBatch = biggest safe batch for your GPU
+batch: -1                       # AutoBatch = biggest safe batch for your GPU
 imgsz: 640                     # recommended for small MRI structures
 save: True
 save_period: 25                # checkpoint every 25 epochs (avoid too many files)
@@ -20,7 +20,7 @@ cache: ram                     # faster if you have RAM; set to False if not
 device: 0
 workers: 8
 project: runs/segment
-name: vocal_tract_yolo26x_1000ep
+name: vocal_tract_yolo11_seg_2_pixel
 exist_ok: True
 pretrained: True
 optimizer: AdamW
@@ -41,7 +41,7 @@ compile: False
 
 # Segmentation settings --------------------------------------------------------
 overlap_mask: False            # important for adjacent anatomy classes
-mask_ratio: 2                  # higher-resolution masks (better boundaries)
+mask_ratio: 1                  # higher-resolution masks (better boundaries)
 
 # Val/Test settings ------------------------------------------------------------
 val: True
