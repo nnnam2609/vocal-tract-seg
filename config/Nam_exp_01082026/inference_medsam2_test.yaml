@@ -30,8 +30,8 @@ evaluation:
     - thyroid-cartilage
     - vocal-folds
   save_csv: true
-  save_visualizations: false
-  save_per_image: false
+  save_visualizations: true
+  save_per_image: true
   save_summary: false
 
 labels:
