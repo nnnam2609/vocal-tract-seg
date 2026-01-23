@@ -23,6 +23,8 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT.parent))
+sys.path.insert(0, str(REPO_ROOT.parent / "vt_tools"))
+sys.path.insert(0, str(REPO_ROOT.parent / "vt_tracker"))
 
 # MedSAM2 imports (from external/MedSAM2)
 MEDSAM2_ROOT = REPO_ROOT / "external" / "MedSAM2"
@@ -40,7 +42,23 @@ def load_config(config_path):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     config["_config_path"] = config_path
+    config["_config_dir"] = os.path.dirname(os.path.abspath(config_path))
     return config
+
+
+def resolve_path(path_value, config_dir, repo_root):
+    if not path_value:
+        return path_value
+    path_str = str(path_value)
+    if os.path.isabs(path_str):
+        return path_str
+
+    candidate = os.path.abspath(os.path.join(config_dir, path_str))
+    if os.path.exists(candidate):
+        return candidate
+
+    candidate = os.path.abspath(os.path.join(repo_root, path_str))
+    return candidate
 
 
 def parse_image_name(image_name):
@@ -180,8 +198,26 @@ def mask_to_bbox(mask):
     return np.array([x0, y0, x1, y1], dtype=np.int64)
 
 
-def build_predictor(config_path, checkpoint_path, device):
-    model = build_sam2(config_path, checkpoint_path, device=device)
+def resolve_config_name(model_cfg):
+    config_name = model_cfg.get("config_name")
+    if config_name:
+        return config_name
+
+    config_path = model_cfg.get("config_path")
+    if not config_path:
+        raise ValueError("Model config must set either 'config_name' or 'config_path'.")
+
+    # If a file path is provided, use the basename without extension.
+    config_path = str(config_path)
+    base = os.path.basename(config_path)
+    name, _ = os.path.splitext(base)
+    return name
+
+
+def build_predictor(model_cfg, device):
+    config_name = resolve_config_name(model_cfg)
+    checkpoint_path = model_cfg["checkpoint_path"]
+    model = build_sam2(config_name, checkpoint_path, device=device)
     predictor = SAM2ImagePredictor(model)
     return predictor
 
@@ -465,9 +501,14 @@ def save_results(results, config):
 
 def run(config_path):
     config = load_config(config_path)
-    input_folder = config["paths"]["input_folder"]
-    output_folder = config["paths"]["output_folder"]
-    gt_folder = config["paths"]["ground_truth_folder"]
+    config_dir = config["_config_dir"]
+
+    input_folder = resolve_path(config["paths"]["input_folder"], config_dir, REPO_ROOT)
+    output_folder = resolve_path(config["paths"]["output_folder"], config_dir, REPO_ROOT)
+    gt_folder = resolve_path(config["paths"]["ground_truth_folder"], config_dir, REPO_ROOT)
+
+    model_cfg = config["model"]
+    model_cfg["checkpoint_path"] = resolve_path(model_cfg.get("checkpoint_path"), config_dir, REPO_ROOT)
 
     os.makedirs(output_folder, exist_ok=True)
 
@@ -477,19 +518,24 @@ def run(config_path):
             if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp"))
         )
     else:
-        image_files = config["data"].get("specific_images", [])
+        list_file = config["data"].get("specific_images_file")
+        if list_file:
+            list_path = resolve_path(list_file, config_dir, REPO_ROOT)
+            with open(list_path, "r") as f:
+                image_files = [line.strip() for line in f if line.strip()]
+        else:
+            image_files = config["data"].get("specific_images", [])
 
     if not image_files:
         print("No images found to process!")
         return
 
-    model_cfg = config["model"]
     device = model_cfg.get("device", "cuda")
     if device.startswith("cuda") and not torch.cuda.is_available():
         print("⚠️  CUDA not available, falling back to CPU.")
         device = "cpu"
 
-    predictor = build_predictor(model_cfg["config_path"], model_cfg["checkpoint_path"], device=device)
+    predictor = build_predictor(model_cfg, device=device)
 
     results_all = []
     for img_file in image_files:

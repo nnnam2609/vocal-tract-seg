@@ -2,7 +2,7 @@
 # Experiment: Nam_exp_01082026
 
 model:
-  config_path: ./external/MedSAM2/sam2/configs/sam2.1_hiera_large1024_VTS_opt.yaml
+  config_name: configs/sam2.1/sam2.1_hiera_l
   checkpoint_path: ./external/MedSAM2/exp_log/MedSAM2_VTS_large/checkpoints/checkpoint.pt
   device: cuda
 
@@ -12,7 +12,8 @@ paths:
   ground_truth_folder: ./data_yolo_ribbon_2_px/labels/test
 
 data:
-  process_all: true
+  process_all: false
+  specific_images_file: ./test_image_list_233.txt
   specific_images:
 
 inference:
@@ -29,8 +30,8 @@ evaluation:
     - thyroid-cartilage
     - vocal-folds
   save_csv: true
-  save_visualizations: true
-  save_per_image: true
+  save_visualizations: false
+  save_per_image: false
   save_summary: false
 
 labels:
