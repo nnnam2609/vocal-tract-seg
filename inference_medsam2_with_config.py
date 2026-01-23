@@ -19,8 +19,13 @@ from scipy.ndimage import binary_fill_holes
 
 import torch
 
+# Repo root (for vt_tools / vt_tracker imports)
+REPO_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT.parent))
+
 # MedSAM2 imports (from external/MedSAM2)
-MEDSAM2_ROOT = Path(__file__).resolve().parent / "external" / "MedSAM2"
+MEDSAM2_ROOT = REPO_ROOT / "external" / "MedSAM2"
 sys.path.insert(0, str(MEDSAM2_ROOT))
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
