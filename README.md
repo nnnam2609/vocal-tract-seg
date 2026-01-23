@@ -157,23 +157,6 @@ CSV columns:
 
 ---
 
-## Troubleshooting
-
-**MissingConfigException (Hydra):**
-- Use `config_name: configs/sam2.1/sam2.1_hiera_l` (works with current MedSAM2 Hydra setup).
-
-**Checkpoint not found:**
-- Paths are resolved relative to the config and repo root. Make sure the checkpoint exists:
-  `external/MedSAM2/exp_log/MedSAM2_VTS_large/checkpoints/checkpoint.pt`
-
-**vt_tracker import errors:**
-- Ensure `vt_tools` and `vt_tracker` are installed or accessible via `PYTHONPATH`.
-
-**GPU warning about Flash Attention:**
-- Safe to ignore on GTX 1080 Ti (non-Ampere).
-
----
-
 ## Other Branches (short)
 
 - **main**: Mask R-CNN training + inference + evaluation
