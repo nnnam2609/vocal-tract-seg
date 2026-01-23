@@ -12,46 +12,17 @@ Université de Lorraine
 
 ## Overview
 
-This repository implements deep learning methods for automatic segmentation of vocal tract articulators from real-time MRI sequences, exploring many segmentation approaches with Mask R-CNN, nnUNet and YOLO-based architectures.
+This repository implements deep learning methods for automatic segmentation of vocal tract articulators from real-time MRI sequences, with multiple model families.
 
-### exp/yolo-seg Branch Focus
+### exp/yolo-seg Branch Focus (YOLO)
 
-This branch focuses on training **YOLO11 segmentation models** for vocal tract articulator segmentation using the **ribbon mask conversion method**. The implementation provides:
+This branch focuses on training **YOLO11 segmentation models** with the **ribbon mask conversion** for open contours. It provides:
 
 - Instance segmentation of 9 vocal tract articulators
 - Ribbon mask conversion for open contours
 - Adaptive thickness scaling for different image sizes
-- Training pipeline with Ultralytics framework
-- Comprehensive evaluation and visualization tools
-- Real-time inference capabilities
-
-### Dataset
-
-The training data comes from the **ASD1** and **ASD2** datasets, which are part of the larger multimodal MRI database of French speakers:
-
-**Database:** [Multimodal dataset of real-time 2D and static 3D MRI of healthy French speakers](https://springernature.figshare.com/collections/Multimodal_dataset_of_real-time_2D_and_static_3D_MRI_of_healthy_French_speakers/5270387)
-
-This comprehensive database includes:
-- Real-time 2D MRI sequences of speech production
-- Static 3D MRI volumes
-- Multiple healthy French speakers
-- Various speech tasks and phonetic contexts
-
-For more details about the database and its applications, please refer to the [Related Publications](#related-publications) section below.
-
-### Segmented Articulators
-
-The system segments 9 different vocal tract structures:
-
-1. **Arytenoid Cartilage** - Controls vocal fold positioning
-2. **Epiglottis** - Guards the airway during swallowing
-3. **Lower Lip** - Critical for labial consonants
-4. **Pharynx** - Pharyngeal cavity shape
-5. **Soft Palate Midline** - Velopharyngeal port control
-6. **Thyroid Cartilage** - Laryngeal framework
-7. **Tongue** - Primary articulator for most sounds
-8. **Upper Lip** - Works with lower lip for bilabial sounds
-9. **Vocal Folds** - Source of phonation
+- Ultralytics training + inference
+- Evaluation CSVs aligned with the main branch metrics
 
 ---
 
@@ -118,6 +89,26 @@ python train_yolo_ultralytics.py --cfg config/Nam_exp_01082026/yolo_train_config
 ```
 
 This script reads all training parameters from the YAML config (model, epochs, batch size, learning rate, etc.) and trains the model using the Ultralytics framework.
+
+### Inference + Evaluation
+
+Run inference and generate the detailed evaluation CSV:
+
+```bash
+python inference_yolo_with_config.py --config config/Nam_exp_01082026/inference_yolo_test.yaml
+```
+
+Outputs:
+- `inference_output_yolo_* / evaluation_results_detailed.csv`
+- Optional visualization panels per image
+
+---
+
+## Other Branches (short)
+
+- **main**: Mask R-CNN training + inference + evaluation
+- **exp/medsam**: MedSAM2 inference/eval (CSV compatible with YOLO)
+- **exp/nnunetv2**: nnUNetv2 training/inference experiments
 
 ### Inference
 
