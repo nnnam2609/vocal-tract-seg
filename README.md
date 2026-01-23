@@ -14,6 +14,87 @@ Université de Lorraine
 
 This repository implements deep learning methods for automatic segmentation of vocal tract articulators from real-time MRI sequences, exploring many segmentation approaches with Mask R-CNN, nnUnet and YOLO-based .
 
+## exp/medsam Branch (MedSAM2 Inference + Evaluation)
+
+This branch adds a MedSAM2 inference and evaluation pipeline that produces an
+`evaluation_results_detailed.csv` with the **same structure** as the YOLO evaluation
+output, so you can compare models later.
+
+### What It Runs
+
+- Model: MedSAM2 (image predictor)
+- Input images: YOLO-format test images
+- GT labels: YOLO-format `labels/test/*.txt`
+- Output CSV: `inference_output_medsam2_* / evaluation_results_detailed.csv`
+- Metrics: P2CP mean/RMS + Jaccard (same logic as YOLO eval)
+
+### Files You Will Use
+
+- Script: `inference_medsam2_with_config.py`
+- Config: `config/Nam_exp_01082026/inference_medsam2_test.yaml`
+- Image list: `config/Nam_exp_01082026/test_image_list_233.txt`
+
+### Quick Run (233 images)
+
+```bash
+# Activate MedSAM2 environment
+source /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/.venv-medsam2/bin/activate
+
+# Run MedSAM2 inference + evaluation
+python inference_medsam2_with_config.py \
+  --config config/Nam_exp_01082026/inference_medsam2_test.yaml
+```
+
+Output CSV:
+```
+vocal-tract-seg/inference_output_medsam2_Nam_exp_01232026_all1/evaluation_results_detailed.csv
+```
+
+### Run All 240 Images Instead of 233
+
+Edit `config/Nam_exp_01082026/inference_medsam2_test.yaml`:
+
+```yaml
+data:
+  process_all: true
+  specific_images_file:
+  specific_images:
+```
+
+Then re-run the command above.
+
+### Re-enable Visualizations
+
+By default, visualizations are disabled (faster, no matplotlib required).
+To re-enable them:
+
+1) Install matplotlib in your MedSAM2 env:
+```bash
+pip install matplotlib
+```
+
+2) Update the config:
+```yaml
+evaluation:
+  save_visualizations: true
+  save_per_image: true
+```
+
+3) Re-run:
+```bash
+python inference_medsam2_with_config.py \
+  --config config/Nam_exp_01082026/inference_medsam2_test.yaml
+```
+
+### CSV Structure (for comparison)
+
+The MedSAM2 CSV matches the YOLO evaluation CSV columns:
+- subject, sequence, frame, image_name
+- class_id, class_name
+- jaccard_index, has_prediction, has_ground_truth
+- confidence, pred_pixels, gt_pixels
+- p2cp_mean, p2cp_rms
+
 ### Main Branch Focus
 
 This branch focuses on training **Mask R-CNN** models for vocal tract articulator segmentation using data from the **ASD1** and **ASD2** datasets. The implementation provides:
