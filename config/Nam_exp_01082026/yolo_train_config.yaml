@@ -12,7 +12,7 @@ data: ./data_yolo_ribbon_2_px/data.yaml    # path to your dataset yaml
 epochs: 1000                   # requested
 time:                          # optional max training hours (leave empty)
 patience: 50                   # requested
-batch: -1                       # AutoBatch = biggest safe batch for your GPU
+batch: 16                      # AutoBatch = biggest safe batch for your GPU
 imgsz: 640                     # recommended for small MRI structures
 save: True
 save_period: 25                # checkpoint every 25 epochs (avoid too many files)

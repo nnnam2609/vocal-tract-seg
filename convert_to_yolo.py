@@ -297,6 +297,8 @@ def convert_dataset_to_yolo(config, output_dir, split, thickness=5,
     datadir = Path(config['datadir'])
     classes = config['classes']
     class_to_id = {cls: idx for idx, cls in enumerate(classes)}
+    ignore_tongue_only = bool(config.get('ignore_tongue_only', False))
+    tongue_class_id = class_to_id.get('tongue')
     sequences = config.get(f'{split}_sequences', {})
     
     image_folder = config.get('image_folder', 'dicoms')
@@ -410,6 +412,12 @@ def convert_dataset_to_yolo(config, output_dir, split, thickness=5,
                     else:
                         ribbon_stats[class_name]['failed'] += 1
                 
+                # Optionally skip frames that only contain the tongue class
+                if ignore_tongue_only and len(yolo_labels) > 0 and tongue_class_id is not None:
+                    if all(label[0] == tongue_class_id for label in yolo_labels):
+                        skipped_count += 1
+                        continue
+
                 # Save image and label if we have any valid annotations
                 if len(yolo_labels) > 0:
                     # Save image (PIL Image)
