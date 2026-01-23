@@ -14,6 +14,56 @@ Université de Lorraine
 
 This repository implements deep learning methods for automatic segmentation of vocal tract articulators from real-time MRI sequences, exploring many segmentation approaches with Mask R-CNN, nnUnet and YOLO-based .
 
+## gen-video Branch (Model Comparison Videos)
+
+This branch adds a lightweight tool to generate **side-by-side videos** for different
+models using the **same test frames**. It is designed for Mask R-CNN, YOLO, nnUNet,
+and MedSAM outputs as long as the frame names are consistent.
+
+Tool: `tools/gen_video.py`
+
+### Features
+- Uses a frame list (one filename per line) to keep all models aligned
+- Flexible model input format with filename templates
+- Optional raw input column
+- Optional audio merge (moviepy) and silence removal (TextGrid)
+
+### Quick Example (YOLO vs MedSAM)
+
+```bash
+python tools/gen_video.py \
+  --frames config/Nam_exp_01082026/test_image_list_233.txt \
+  --input-dir data_yolo_ribbon_2_px/images/test \
+  --model yolo=./inference_output_yolo_Nam_exp_01232026_all1:eval_{stem}.png \
+  --model medsam=./inference_output_medsam2_Nam_exp_01232026_all1:eval_{stem}.png \
+  --output ./videos/yolo_vs_medsam.mp4 \
+  --fps 50.05 \
+  --tile-width 640 --tile-height 480
+```
+
+### Template Rules
+
+`--model name=DIR[:TEMPLATE]`
+- `{name}` = full filename (e.g., `ArtSpeech_Database_2_1775_S12_0001.jpg`)
+- `{stem}` = filename without extension (e.g., `ArtSpeech_Database_2_1775_S12_0001`)
+- If TEMPLATE is omitted, default is `eval_{stem}.png`
+
+### Optional Audio Merge
+
+```bash
+python tools/gen_video.py ... \
+  --audio /path/to/1775_S12.wav \
+  --with-audio
+```
+
+To remove silence using a TextGrid:
+```bash
+python tools/gen_video.py ... \
+  --audio /path/to/1775_S12.wav \
+  --with-audio \
+  --no-silence /path/to/1775_S12_adjusted.textgrid
+```
+
 ### Main Branch Focus
 
 This branch focuses on training **Mask R-CNN** models for vocal tract articulator segmentation using data from the **ASD1** and **ASD2** datasets. The implementation provides:
