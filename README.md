@@ -14,9 +14,9 @@ Université de Lorraine
 
 This repository implements deep learning methods for automatic segmentation of vocal tract articulators from real-time MRI sequences, exploring many segmentation approaches with Mask R-CNN, nnUnet and YOLO-based .
 
-### Main Branch Focus
+### main Branch Focus (Mask R-CNN)
 
-This branch focuses on training **Mask R-CNN** models for vocal tract articulator segmentation using data from the **ASD1** and **ASD2** datasets. The implementation provides:
+This branch focuses on training **Mask R-CNN** models on ASD datasets. It provides:
 
 - Instance segmentation of 9 vocal tract articulators
 - Training pipeline with data augmentation
@@ -24,33 +24,7 @@ This branch focuses on training **Mask R-CNN** models for vocal tract articulato
 - Articulator tracking across temporal sequences
 - Multiple output formats for research analysis
 
-### Dataset
-
-The training data comes from the **ASD1** and **ASD2** datasets, which are part of the larger multimodal MRI database of French speakers:
-
-**Database:** [Multimodal dataset of real-time 2D and static 3D MRI of healthy French speakers](https://springernature.figshare.com/collections/Multimodal_dataset_of_real-time_2D_and_static_3D_MRI_of_healthy_French_speakers/5270387)
-
-This comprehensive database includes:
-- Real-time 2D MRI sequences of speech production
-- Static 3D MRI volumes
-- Multiple healthy French speakers
-- Various speech tasks and phonetic contexts
-
-For more details about the database and its applications, please refer to the [Related Publications](#related-publications) section below.
-
-### Segmented Articulators
-
-The system segments 9 different vocal tract structures:
-
-1. **Arytenoid Cartilage** - Controls vocal fold positioning
-2. **Epiglottis** - Guards the airway during swallowing
-3. **Lower Lip** - Critical for labial consonants
-4. **Pharynx** - Pharyngeal cavity shape
-5. **Soft Palate Midline** - Velopharyngeal port control
-6. **Thyroid Cartilage** - Laryngeal framework
-7. **Tongue** - Primary articulator for most sounds
-8. **Upper Lip** - Works with lower lip for bilabial sounds
-9. **Vocal Folds** - Source of phonation
+Dataset: ASD1/ASD2 from the Multimodal MRI database of French speakers (see publications).
 
 ---
 
@@ -118,6 +92,14 @@ python inference_maskrcnn.py with /path/to/your/inference_config.yaml
 ### Testing/Evaluation
 
 To evaluate a trained model:
+
+---
+
+## Other Branches (short)
+
+- **exp/yolo-seg**: YOLO11 segmentation with ribbon mask conversion
+- **exp/medsam**: MedSAM2 inference/eval with CSV compatible to YOLO
+- **exp/nnunetv2**: nnUNetv2 experiments
 
 ```bash
 python test_maskrcnn.py with /path/to/your/test_config.yaml
