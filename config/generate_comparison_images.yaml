@@ -1,0 +1,116 @@
+# Configuration for generating comparison images for plot alignment
+# Uses test sequences from foundation_model.yaml and results from results/32
+
+# Source data directory containing original MRI images and ground truth contours
+datadir: /srv/storage/talc@storage4.nancy/multispeech/corpus/speech_production/iadi
+
+# Directory containing inference contours from results/32
+inference_dir: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/results/32/test_outputs/inference_contours
+
+# Output directory for generated comparison images
+# Each sequence will have 3 subfolders: original, predict, compare
+output_dir: /srv/storage/talc2@talc-data2.nancy.grid5000.fr/multispeech/calcul/users/nhanguyen/vocal-tract-seg/comparison_output
+
+# Image loading settings
+image_folder: NPY_MR
+image_ext: npy
+
+# Articulator classes to include
+classes:
+    - arytenoid-cartilage
+    - epiglottis
+    - lower-lip
+    - pharynx
+    - soft-palate-midline
+    - thyroid-cartilage
+    - tongue
+    - upper-lip
+    - vocal-folds
+
+# Test sequences from foundation_model.yaml
+test_sequences:
+    "ArtSpeech_Vocal_Tract_Segmentation/1612":
+        - S7
+        - S12
+        - S18
+    "ArtSpeech_Vocal_Tract_Segmentation/1617":
+        - S8
+        - S14
+        - S18
+        - S21
+        - S23
+    "ArtSpeech_Vocal_Tract_Segmentation/1618":
+        - S7
+        - S16
+        - S19
+        - S21
+    "ArtSpeech_Vocal_Tract_Segmentation/1628":
+        - S9
+        - S11
+        - S12
+        - S13
+        - S16
+        - S23
+    "ArtSpeech_Vocal_Tract_Segmentation/1635":
+        - S8
+        - S9
+        - S11
+        - S19
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1638":
+        - S10
+        - S13
+        - S19
+    "ArtSpeech_Vocal_Tract_Segmentation/1640":
+        - S17
+        - S22
+        - S23
+    "ArtSpeech_Vocal_Tract_Segmentation/1653":
+        - S10
+        - S19
+        - S21
+    "ArtSpeech_Vocal_Tract_Segmentation/1659":
+        - S8
+        - S9
+        - S11
+        - S14
+        - S18
+        - S22
+    "ArtSpeech_Vocal_Tract_Segmentation/1662":
+        - S9
+        - S10
+        - S11
+        - S13
+        - S16
+        - S17
+        - S18
+        - S19
+        - S21
+        - S22
+    "ArtSpeech_Database_2/1775":
+        - S9
+        - S12
+        - S14
+        - S21
+        - S23
+        - S24
+        - S26
+        - S28
+        - S31
+
+# Color configuration for articulators
+# Ground truth: solid lines
+# Predictions: dashed lines
+colors:
+    arytenoid-cartilage: "blueviolet"
+    epiglottis: "turquoise"
+    lower-incisor: "cyan"
+    lower-lip: "lime"
+    pharynx: "goldenrod"
+    soft-palate: "dodgerblue"
+    soft-palate-midline: "dodgerblue"
+    thyroid-cartilage: "sandybrown"
+    tongue: "darkorange"
+    upper-incisor: "yellow"
+    upper-lip: "magenta"
+    vocal-folds: "hotpink"
