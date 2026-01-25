@@ -129,6 +129,22 @@ python inference_yolo_with_config.py --config config/Nam_exp_01082026/inference_
 
 This loads the trained model and runs predictions on specified sequences, saving results and evaluation metrics.
 
+#### Inference (contours/masks/visuals only)
+
+Run inference and save contours/masks/visualizations using the lightweight script:
+
+```bash
+python inference_yolo.py --config config/yolo_inference.yaml
+```
+
+#### Evaluation (metrics only)
+
+Run evaluation on the test set using the YOLO evaluation script:
+
+```bash
+python evaluation_yolo.py --config config/yolo_evaluation.yaml
+```
+
 ---
 
 ## Features

@@ -36,6 +36,25 @@ cd /path/to/vocal-tract-seg
 python generate_comparison_images.py --config config/generate_comparison_images.yaml
 ```
 
+### YOLO Comparison (this repo)
+
+Use the YOLO inference contours and the YOLO comparison config:
+
+```bash
+# 1) Run YOLO inference and save contours
+python inference_yolo.py --config config/yolo_inference.yaml
+
+# 2) Generate comparison images
+python generate_comparison_images.py --config config/generate_comparison_images_yolo.yaml
+
+# 3) (Optional) Generate summary video
+python generate_summary_video.py --mode all \
+  --comparison-dir comparison_output_yolo \
+  --output-dir videos --fps 2 --model-name YOLO
+```
+
+For more details, see `README_YOLO_COMPARISON.md`.
+
 **Configuration** (`config/generate_comparison_images.yaml`):
 - Source data directory (MRI images + ground truth ROI files)
 - Inference contours directory (model predictions)

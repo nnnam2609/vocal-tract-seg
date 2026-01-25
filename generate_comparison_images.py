@@ -110,24 +110,58 @@ def create_image_with_contours(mri_image, contours_data, output_path, show_legen
     plt.savefig(output_path, dpi=dpi, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def get_available_frames(datadir, inference_dir, subject_id, sequence_name):
-    """Get list of available frame numbers that have inference contours."""
-    # Check inference directory for available frames
-    inf_dir = inference_dir / subject_id / sequence_name
-    if not inf_dir.exists():
-        return []
-    
-    frames = set()
-    for npy_file in inf_dir.glob("*.npy"):
-        # Extract frame number from filename like: 0061_tongue.npy
-        parts = npy_file.stem.split('_')
-        if len(parts) >= 2:
-            try:
-                frame_num = int(parts[0])
-                frames.add(frame_num)
-            except ValueError:
-                continue
-    
+def _frames_with_all_classes(base_dir, classes, suffix):
+    """Return frames that have all required classes for a given suffix."""
+    frames_map = {}
+    if not base_dir.exists():
+        return set()
+    for file_path in base_dir.glob(f"*{suffix}"):
+        stem = file_path.stem
+        if '_' not in stem:
+            continue
+        frame_str, class_name = stem.split('_', 1)
+        if not frame_str.isdigit():
+            continue
+        if class_name not in classes:
+            continue
+        frame_num = int(frame_str)
+        frames_map.setdefault(frame_num, set()).add(class_name)
+    return {frame for frame, cls_set in frames_map.items() if all(c in cls_set for c in classes)}
+
+
+def get_available_frames(datadir, inference_dir, subject_id, sequence_name, classes,
+                         require_all_gt=False, require_all_pred=False):
+    """Get list of available frame numbers based on GT/pred availability."""
+    # Default behavior: any inference contour exists
+    if not require_all_gt and not require_all_pred:
+        inf_dir = inference_dir / subject_id / sequence_name
+        if not inf_dir.exists():
+            return []
+        frames = set()
+        for npy_file in inf_dir.glob("*.npy"):
+            # Extract frame number from filename like: 0061_tongue.npy
+            parts = npy_file.stem.split('_')
+            if len(parts) >= 2:
+                try:
+                    frame_num = int(parts[0])
+                    frames.add(frame_num)
+                except ValueError:
+                    continue
+        return sorted(list(frames))
+
+    gt_dir = datadir / subject_id / sequence_name / "contours"
+    pred_dir = inference_dir / subject_id / sequence_name
+
+    gt_frames = _frames_with_all_classes(gt_dir, classes, ".roi") if require_all_gt else set()
+    pred_frames = _frames_with_all_classes(pred_dir, classes, ".npy") if require_all_pred else set()
+
+    if require_all_gt and require_all_pred:
+        frames = gt_frames & pred_frames
+    elif require_all_gt:
+        frames = gt_frames
+    else:
+        frames = pred_frames
+
     return sorted(list(frames))
 
 def process_sequence(config, subject_id, sequence_name):
@@ -147,10 +181,24 @@ def process_sequence(config, subject_id, sequence_name):
     inference_dir = Path(config['inference_dir'])
     classes = config['classes']
     
-    # Get frames that have inference contours
-    frames = get_available_frames(datadir, inference_dir, subject_id, sequence_name)
+    frame_filter = config.get('frame_filter', {})
+    require_all_gt = frame_filter.get('require_all_gt', False)
+    require_all_pred = frame_filter.get('require_all_pred', False)
+
+    # Get frames based on filter settings
+    frames = get_available_frames(
+        datadir, inference_dir, subject_id, sequence_name, classes,
+        require_all_gt=require_all_gt, require_all_pred=require_all_pred
+    )
     if not frames:
-        print(f"  Warning: No inference frames found for {subject_id}/{sequence_name}")
+        if require_all_gt and require_all_pred:
+            print(f"  Warning: No frames with full GT+Pred for {subject_id}/{sequence_name}")
+        elif require_all_gt:
+            print(f"  Warning: No frames with full GT for {subject_id}/{sequence_name}")
+        elif require_all_pred:
+            print(f"  Warning: No frames with full Pred for {subject_id}/{sequence_name}")
+        else:
+            print(f"  Warning: No inference frames found for {subject_id}/{sequence_name}")
         return
     
     for frame_num in tqdm(frames, desc=f"{subject_id}/{sequence_name}"):
@@ -173,20 +221,40 @@ def process_sequence(config, subject_id, sequence_name):
         for class_name in classes:
             color = ARTICULATOR_COLORS.get(class_name, '#FFFFFF')
             
-            # Load ground truth - individual ROI file
-            roi_filename = f"{frame_str}_{class_name}.roi"
-            roi_path = datadir / subject_id / sequence_name / "contours" / roi_filename
-            gt_contour = load_ground_truth_contour(roi_path)
+            # Special handling for 'lips' class - load both lower and upper lip from ground truth
+            if class_name == 'lips':
+                # Load lower-lip
+                roi_filename_lower = f"{frame_str}_lower-lip.roi"
+                roi_path_lower = datadir / subject_id / sequence_name / "contours" / roi_filename_lower
+                gt_contour_lower = load_ground_truth_contour(roi_path_lower)
+                
+                # Load upper-lip
+                roi_filename_upper = f"{frame_str}_upper-lip.roi"
+                roi_path_upper = datadir / subject_id / sequence_name / "contours" / roi_filename_upper
+                gt_contour_upper = load_ground_truth_contour(roi_path_upper)
+                
+                # Add both to ground truth contours
+                if gt_contour_lower is not None:
+                    gt_contours.append((gt_contour_lower, color, f"{class_name} (GT)", '-', class_name))
+                    all_contours.append((gt_contour_lower, color, f"{class_name} (GT)", '-', class_name))
+                if gt_contour_upper is not None:
+                    gt_contours.append((gt_contour_upper, color, f"{class_name} (GT)", '-', class_name))
+                    all_contours.append((gt_contour_upper, color, f"{class_name} (GT)", '-', class_name))
+            else:
+                # Normal single ROI file
+                roi_filename = f"{frame_str}_{class_name}.roi"
+                roi_path = datadir / subject_id / sequence_name / "contours" / roi_filename
+                gt_contour = load_ground_truth_contour(roi_path)
+                
+                # Add to lists (only if contour exists)
+                if gt_contour is not None:
+                    gt_contours.append((gt_contour, color, f"{class_name} (GT)", '-', class_name))
+                    all_contours.append((gt_contour, color, f"{class_name} (GT)", '-', class_name))
             
-            # Load prediction - organized in subdirectories
+            # Load prediction - organized in subdirectories (same for all classes including lips)
             pred_filename = f"{frame_str}_{class_name}.npy"
             pred_path = inference_dir / subject_id / sequence_name / pred_filename
             pred_contour = load_predicted_contour(pred_path)
-            
-            # Add to lists (only if contour exists)
-            if gt_contour is not None:
-                gt_contours.append((gt_contour, color, f"{class_name} (GT)", '-', class_name))
-                all_contours.append((gt_contour, color, f"{class_name} (GT)", '-', class_name))
             
             if pred_contour is not None:
                 pred_contours.append((pred_contour, color, f"{class_name} (Pred)", '--', class_name))
