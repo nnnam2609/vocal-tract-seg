@@ -93,6 +93,53 @@ def parse_image_name(image_name):
     return subject, sequence, frame
 
 
+def get_dataset_name(image_name):
+    base_name = os.path.splitext(image_name)[0]
+    parts = base_name.split("_")
+    if len(parts) >= 6 and parts[1] == "Database":
+        return "_".join(parts[:3])  # ArtSpeech_Database_2
+    if len(parts) >= 7 and parts[1] == "Vocal" and parts[2] == "Tract":
+        return "_".join(parts[:4])  # ArtSpeech_Vocal_Tract_Segmentation
+    return "UnknownDataset"
+
+
+def save_pred_contour(output_folder, dataset, subject, sequence, frame, class_name, contour):
+    if subject is None or sequence is None or frame is None:
+        return
+    out_dir = Path(output_folder) / "inference_contours" / dataset / str(subject) / str(sequence)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    frame_str = f"{int(frame):04d}"
+    np.save(out_dir / f"{frame_str}_{class_name}.npy", contour)
+
+
+def log_zero_p2cp(output_folder, image_name, class_name, result, pred_contour, gt_contour, eps=1e-6):
+    p2cp_mean = result.get("p2cp_mean")
+    if p2cp_mean is None or not np.isfinite(p2cp_mean) or p2cp_mean > eps:
+        return
+    log_path = Path(output_folder) / "p2cp_zero_debug.log"
+    pred_len = len(pred_contour) if pred_contour is not None else 0
+    gt_len = len(gt_contour) if gt_contour is not None else 0
+    same = False
+    if pred_contour is not None and gt_contour is not None:
+        same = pred_contour.shape == gt_contour.shape and np.allclose(pred_contour, gt_contour)
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(
+            "image={image} class={cls} pred_pixels={pp} gt_pixels={gp} "
+            "pred_len={pl} gt_len={gl} p2cp_mean={pm:.6f} p2cp_rms={pr:.6f} "
+            "contours_equal={eq}\n".format(
+                image=image_name,
+                cls=class_name,
+                pp=result.get("pred_pixels"),
+                gp=result.get("gt_pixels"),
+                pl=pred_len,
+                gl=gt_len,
+                pm=result.get("p2cp_mean", float("nan")),
+                pr=result.get("p2cp_rms", float("nan")),
+                eq=same,
+            )
+        )
+
+
 def smooth_contour(contour):
     try:
         res_x, res_y = regularize_Bsplines(contour, 3)
@@ -101,7 +148,32 @@ def smooth_contour(contour):
         return contour
 
 
-def extract_contour_from_mask(binary_mask, class_name=None, use_vt_tracker=True, gravity_curve=None):
+def log_contour_fallback(log_path, image_name, class_name, mask_kind, reason, mask_pixels):
+    if not log_path:
+        return
+    line = (
+        "image={image} class={cls} mask={mask} reason={reason} mask_pixels={pixels}\n"
+        .format(
+            image=image_name,
+            cls=class_name,
+            mask=mask_kind,
+            reason=reason,
+            pixels=int(mask_pixels),
+        )
+    )
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(line)
+
+
+def extract_contour_from_mask(
+    binary_mask,
+    class_name=None,
+    use_vt_tracker=True,
+    gravity_curve=None,
+    fallback_log_path=None,
+    image_name=None,
+    mask_kind=None,
+):
     if use_vt_tracker and class_name is not None:
         try:
             mask_normalized = binary_mask.astype(np.float32) / 255.0
@@ -112,11 +184,26 @@ def extract_contour_from_mask(binary_mask, class_name=None, use_vt_tracker=True,
                 gravity_curve=gravity_curve,
                 cfg=post_proc_cfg,
             )
-            if len(contour) > 0:
+            if contour is not None and len(contour) > 0:
                 contour = smooth_contour(contour)
                 return contour
-            return None
+            log_contour_fallback(
+                fallback_log_path,
+                image_name,
+                class_name,
+                mask_kind,
+                "vt_tracker_empty",
+                (binary_mask > 0).sum(),
+            )
         except Exception as e:
+            log_contour_fallback(
+                fallback_log_path,
+                image_name,
+                class_name,
+                mask_kind,
+                f"vt_tracker_exception:{e}",
+                (binary_mask > 0).sum(),
+            )
             print(f"    Warning: vt_tracker failed for {class_name}, falling back to OpenCV: {e}")
 
     contours, _ = cv2.findContours(
@@ -263,6 +350,10 @@ def evaluate_from_masks(image_name, img, pred_masks, gt_masks, config):
     closed_articulators = config["evaluation"]["closed_articulators"]
     postproc_cfg = config.get("postprocessing", {})
     use_vt_tracker = postproc_cfg.get("use_vt_tracker", True)
+    output_folder = resolve_path(config["paths"]["output_folder"], config["_config_dir"], REPO_ROOT)
+    save_contours = config.get("evaluation", {}).get("save_contours", True)
+    fallback_log_path = os.path.join(output_folder, "contour_fallback.log")
+    dataset = get_dataset_name(image_name)
 
     results = []
     subject, sequence, frame = parse_image_name(image_name)
@@ -306,17 +397,34 @@ def evaluate_from_masks(image_name, img, pred_masks, gt_masks, config):
                 class_name=class_name if use_vt_tracker else None,
                 use_vt_tracker=use_vt_tracker,
                 gravity_curve=None,
+                fallback_log_path=fallback_log_path if use_vt_tracker else None,
+                image_name=image_name,
+                mask_kind="pred",
             )
             gt_contour = extract_contour_from_mask(
                 gt_mask,
                 class_name=class_name if use_vt_tracker else None,
                 use_vt_tracker=use_vt_tracker,
                 gravity_curve=None,
+                fallback_log_path=fallback_log_path if use_vt_tracker else None,
+                image_name=image_name,
+                mask_kind="gt",
             )
 
             if pred_contour is None or gt_contour is None:
                 results.append(result)
                 continue
+
+            if save_contours and pred_contour is not None:
+                save_pred_contour(
+                    output_folder,
+                    dataset,
+                    subject,
+                    sequence,
+                    frame,
+                    class_name,
+                    pred_contour,
+                )
 
             result["p2cp_mean"] = p2cp_mean_distance(pred_contour, gt_contour)
             result["p2cp_rms"] = p2cp_rms_distance(pred_contour, gt_contour)
@@ -325,6 +433,8 @@ def evaluate_from_masks(image_name, img, pred_masks, gt_masks, config):
                 pred_filled = create_filled_mask_from_contour(pred_contour, img.shape[:2])
                 gt_filled = create_filled_mask_from_contour(gt_contour, img.shape[:2])
                 result["jaccard_index"] = jaccard_index(pred_filled, gt_filled)
+
+            log_zero_p2cp(output_folder, image_name, class_name, result, pred_contour, gt_contour)
         except Exception as e:
             print(f"    Error processing {class_name}: {e}")
 

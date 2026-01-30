@@ -10,7 +10,7 @@ paths:
   input_folder: ./data_yolo_ribbon_2_px/images/test
   output_folder: ./inference_output_medsam2_Nam_exp_01232026_all1
   ground_truth_folder: ./data_yolo_ribbon_2_px/labels/test
-
+.
 data:
   process_all: false
   specific_images_file: ./test_image_list_233.txt
